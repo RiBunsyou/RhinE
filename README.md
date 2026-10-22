@@ -34,6 +34,8 @@ are fetched online when your files have none.
 ## Features
 
 - **Archive:** every album, or every track, as a rendered case on shelves, or a cover grid; inspect, play, rate and keep favourites.
+- **Artist files:** who made the album, from MusicBrainz, Wikipedia and ListenBrainz: picture, biography, genres and related
+  artists, on the album file or in a file of its own with a map of related artists.
 - **Playlists:** a playlist manager, a track rail, the native playlist in two presets and a profile card with the queue.
 - **Lyrics:** synced lyrics from your files, LRCLIB or NetEase Cloud Music, with an optional translation and romanization.
 - **Signal:** a rendered ∞ ring, a spectrum and the whole-track waveform, or a classic player screen.
@@ -59,12 +61,12 @@ The theme is MIT-licensed ([LICENSE](LICENSE)). [Geist Mono](https://github.com/
 [Oxanium](https://github.com/sevmeyer/oxanium) and [Chakra Petch](https://github.com/m4rc1e/Chakra-Petch) are under the
 SIL Open Font License 1.1. Built on [foobar2000](https://www.foobar2000.org),
 [Columns UI](https://github.com/reupen/columns_ui) and [JSplitter](https://github.com/dima-lur/jsplitter); online
-lyrics from [LRCLIB](https://lrclib.net). The 3D art was rendered in [Blender](https://www.blender.org). Full credits:
+lyrics from [LRCLIB](https://lrclib.net); artist files from MusicBrainz, Wikipedia and ListenBrainz. The 3D art was rendered in [Blender](https://www.blender.org). Full credits:
 [GUIDE.md](GUIDE.md#credits-and-licence).
 
 #### Special Thanks
 
-- 路北路陈 (LuBeiLuChen) https://space.bilibili.com/40238601 | RhineLabUI project: https://github.com/LBEILC/RhineLabUI
+- 路北路陈 (LuBeiLuChen) https://space.bilibili.com/40238601 | RhineLabUI project: https://github.com/LBEILC/RhineLabUI (its archive case model, MIT, is rendered for the artist file)
 - Ronald没有魔杖 (Ronald Has No Wand) https://space.bilibili.com/171289190 | RhineLabUI-Music-Demo project: https://github.com/RonaldDeng/Rhine-Music-Demo
 - Original Arknights PV: 《明日方舟》特别映像 [莱茵生命：访问]: bilibili.com/video/BV1rr4y1b7sz/
 

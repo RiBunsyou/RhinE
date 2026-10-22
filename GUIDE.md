@@ -112,6 +112,8 @@ Running it again keeps the foobar2000 folder and installs the theme again.
 | Archive: play albums without their instrumentals (Instrumental, Off Vocal, Inst., Karaoke, カラオケ, 伴奏 …) | right-click › `Play albums without instrumentals`; the album file shows the ones left out greyed, and a track you click by name still plays | — |
 | Playlists: remove the instrumentals | right-click the playlist in the manager › `Remove instrumentals (N)`; *Edit › Undo* puts them back | — |
 | Archive: every track of the album, with ratings, without opening a playlist | the album file's second page: the two dots at its bottom, `+ N MORE · ALL TRACKS`, or right-click › `Album file: all tracks with ratings`; the wheel over it scrolls the list | `L` (Archive) |
+| Archive: who the artist is: picture, profile, biography, genres and related artists | the album file's third page `ARTIST` (the dots at its bottom, or `L` twice); `PLAY ARTIST` plays every album of the artist in the library | `L` (Archive) |
+| Archive: the artist's file, over the shelves, with a `MAP` of related artists | `OPEN FILE` on the `ARTIST` page, or right-click › `Artist file`; `FILE` / `MAP` at its top right; a related artist in your library opens it in the Archive, another its MusicBrainz page | `I` opens and closes it, `M` turns FILE / MAP, `Esc` closes |
 | Rate a track (1 – 5) | click its marks on the album file's `TRACKS` page, or on the `RATING` row of the signal profile card; the same mark again clears it | `Ctrl+1` – `Ctrl+5` rate the playing track (else the focused one), `Ctrl+0` clears |
 | Where ratings are kept | right-click the Archive › `Ratings saved in`: *Automatic* (foo_playcount's Playback Statistics when it is installed, else JSplitter's own database), *JSplitter database* (no file is written), *Playback Statistics*, or *File tags* (a `RATING` tag in the files) | — |
 | Favourites: a heart on a track or an album, apart from its rating | the heart on the `FAVOURITE` row of the signal profile card; the ♥ button beside `OPEN ALBUM` (the album, or the track when every track is shown); the heart column on the album file's `TRACKS` page; or right-click the Archive › `Favourite album` / `Favourite track` | `H` gives or takes the playing track's (else the focused one's) |
@@ -219,6 +221,19 @@ playlists instead (it says so under the buttons). `PLAY ALBUM` and `OPEN ALBUM` 
 which they reuse. **Case skins** change the look of the specimen cases (Archive and profile cards): the theme ships eleven
 (the `05 STYLE` view shows them all). The Archive keys work when the Archive has keyboard focus (click it once).
 
+**Artist files.** The album file's third page, `ARTIST`, shows who made the album, and `OPEN FILE` (`I`) opens the
+artist's file over the shelves, in a room of cases lit from below; its `MAP` places the related artists around the
+artist, those in your library on the left, the line as strong as the likeness. The keys that move through the Archive
+still work, so the file follows the selection. Everything comes from open sources, without keys or sign-ins: the
+artist is found on [MusicBrainz](https://musicbrainz.org) (by the file's `MUSICBRAINZ_ARTISTID` tag when it has one,
+else by the **artist's name**, which is sent there), the biography is the lead of the artist's
+[Wikipedia](https://www.wikipedia.org) article in the interface language when there is one (else English; CC BY-SA, so
+the source is named and linked), the picture a free one from [Wikimedia Commons](https://commons.wikimedia.org) (its
+author and licence printed under it), and the related artists come from [ListenBrainz](https://listenbrainz.org)
+(listened to by the same people). A file is kept in `<profile>\audio-archive-cache\artists\` and looked up again after 30
+days. A text file `artist.txt` or a picture `artist.jpg` / `artist.png` beside the album's files is shown instead of
+the biography or the picture.
+
 **Search** updates an autoplaylist called *Search* 300 ms after you stop typing: every word must appear in the title,
 artist, album artist, album, genre or date. It searches foobar2000's **media library** (*Preferences › Media
 Library*), so folders must be added there first. `Esc` clears the field and returns to the playlist you were on.
@@ -284,6 +299,9 @@ installed. Columns UI and JSplitter stay installed.
 - Online lyrics come from LRCLIB and NetEase Cloud Music (see *Lyrics view*). Community translations exist only in
   Chinese; for other languages there is machine translation. Lyrics a lookup
   missed are not looked up again for a week (delete `<profile>\audio-archive-cache\lyrics\` to retry at once).
+- Artist files are only as complete as MusicBrainz and Wikipedia: an artist found by name must match exactly, so a
+  lesser-known or ambiguously named artist may get no file (a `MUSICBRAINZ_ARTISTID` tag, as written by MusicBrainz
+  Picard, always finds the right one). Delete `<profile>\audio-archive-cache\artists\` to look every artist up again.
 - The seek line shows only the `START` marker; chapter and cue markers are not read yet.
 - The Lyrics view's warning panel appears for local files that are missing; other decode errors are not reported to
   scripts by foobar2000.
@@ -300,7 +318,11 @@ The theme is MIT-licensed ([LICENSE](LICENSE)). [Geist Mono](https://github.com/
 SIL Open Font License 1.1 (`assets/fonts/OFL.txt`, `OFL-Oxanium.txt`, `OFL-ChakraPetch.txt`). Built on
 [foobar2000](https://www.foobar2000.org),
 [Columns UI](https://github.com/reupen/columns_ui) and [JSplitter](https://github.com/dima-lur/jsplitter); online
-lyrics from [LRCLIB](https://lrclib.net). The portable bundle carries foobar2000's unmodified installer, Columns UI
+lyrics from [LRCLIB](https://lrclib.net); artist files from [MusicBrainz](https://musicbrainz.org),
+[Wikipedia](https://www.wikipedia.org) (CC BY-SA), [Wikimedia Commons](https://commons.wikimedia.org) and
+[ListenBrainz](https://listenbrainz.org). The artist file's room and map cases are renders of the archive case model
+from [RhineLabUI](https://github.com/LBEILC/RhineLabUI) by LBEILC (MIT, `assets/render/artist/LICENSE-RhineLabUI.txt`).
+The portable bundle carries foobar2000's unmodified installer, Columns UI
 (LGPL-3.0, its licence alongside) and [7-Zip](https://www.7-zip.org) (LGPL, its licence alongside). The 3D art was
 rendered in [Blender](https://www.blender.org), partly with materials from third-party material libraries used under
 their licences.

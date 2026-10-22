@@ -3,6 +3,19 @@
 Newest version first. Download any version from [Releases](https://github.com/ericzhang12111-cell/RhinE/releases).
 最新版本在最上面；各版本可在 Releases 页面下载。
 
+## Unreleased
+
+**Added · 新增**
+- Artist files: the album file's third page, `ARTIST`, shows who made the album: their picture, profile, biography,
+  genres and related artists (those in your library marked), with `PLAY ARTIST`. `OPEN FILE` (`I`) opens the artist's
+  file over the shelves, in a room of cases lit from below, and its `MAP` places the related artists around them. From
+  MusicBrainz, Wikipedia (in the interface language when there is an article), Wikimedia Commons and ListenBrainz, kept
+  for 30 days; `artist.txt` / `artist.jpg` beside an album replace the text or the picture (#25, thanks to
+  @RusticBewildered for the idea). 艺术家档案：专辑档案的第三页 `艺术家` 显示专辑的作者：照片、资料、简介、流派和相关艺术家（库中有的会标出），
+  并可 `播放艺术家`。`打开档案`（`I`）在货架上方打开艺术家档案，背景是自下而上照亮的档案室，其中的 `关系图` 把相关艺术家排在周围。
+  资料来自 MusicBrainz、维基百科（有条目时使用界面语言）、维基共享资源和 ListenBrainz，保存 30 天；专辑旁的 `artist.txt` /
+  `artist.jpg` 会代替简介或照片（#25，感谢 @RusticBewildered 的建议）。
+
 ## 1.9.1 — 2026-10-20
 
 **Changed · 改进**
