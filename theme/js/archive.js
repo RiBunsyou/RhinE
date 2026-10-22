@@ -51,7 +51,7 @@ const AR = {
     insp: 0, inspOn: false,        // inspection timeline: 0 in the row · 1 lifted out · 2 square-on in front
     selRoll: Roll("01"), groupRoll: Roll("01"), noRoll: Roll("0000"),
     title: null, tracks: { key: "", rows: [], total: 0 },
-    page: getSetting("archiveInfoPage", "file") === "tracks" ? "tracks" : "file",   // the album file's page
+    page: ["tracks", "artist"].includes(getSetting("archiveInfoPage", "file")) ? getSetting("archiveInfoPage", "file") : "file",   // the album file's page
     list: null, listVer: 0, listScroll: 0, listMax: 0, listKey: "",   // the TRACKS page: its rows, their scroll
     rateHover: null, mouseX: 0,   // { i, n }: the rating under the mouse (previewed); the mouse's x (wheel over the file)
     rulerStart: Spring(0, 14), ticks: new Map(),
@@ -197,6 +197,7 @@ function selectionChanged(animate = true) {
     if (animate) AR.wantKey = "";   // chosen by hand
     AR.groupName = g ? g.name : "";
     if (g && a) { AR.selKey.set(g.name, a.key); AR.selAlbum = a.key; }
+    AF.dirty = true;   // an open artist file follows the selection (artist.js)
     setSetting("archiveSel", JSON.stringify({ key: AR.selAlbum }));
     const r = AR.rows.get(AR.group), n = g ? g.albums.length : 0, w = Math.max(2, String(n).length);
     const sel = pad(r ? r.sel + 1 : 0, w), gno = pad(AR.group + 1, 2), no = pad(a ? a.no : 0, 4);
@@ -649,7 +650,7 @@ function inspectImages() {
     return null;
 }
 // the archive's big images are kept only while it is shown
-function archiveHidden() { pickStop(); TOP_IMG.clear(); AR.inspOn = false; AR.insp = 0; ARIMG.inspect = null; ARIMG.gen++; ARIMG.inspectLoading = false; ARIMG.faded.clear(); ARIMG.clear = ARIMG.frost = ARIMG.rail = null; AR.info = null; FLOOR.key = null; FLOOR.img = null; }
+function archiveHidden() { pickStop(); AF.layer = null; AF.img = {}; TOP_IMG.clear(); AR.inspOn = false; AR.insp = 0; ARIMG.inspect = null; ARIMG.gen++; ARIMG.inspectLoading = false; ARIMG.faded.clear(); ARIMG.clear = ARIMG.frost = ARIMG.rail = null; AR.info = null; FLOOR.key = null; FLOOR.img = null; }
 
 // covers of what is on screen, nearest first: the current row around the selection, then the rows behind
 function requestVisibleThumbs() {
@@ -762,6 +763,7 @@ function drawArchive(gr) {
     THUMB_KEEP.clear();
     const G = arRows();
     if (!G.length) { drawArchiveEmpty(gr); return; }
+    if (AF.open) { AR.hits = []; drawArtistFile(gr); drawInfoLayer(gr); return; }   // artist.js
     const aw = arrayW(), [Ox, Oy] = origin(), k = arK(), meta = CASE_META.array, sz = CASE_META.array_res[0];
     const ax = CASE_META.axes, I = arrayImages();
     const lift = inspLift(), turn = inspTurn(), g = arrayGeom();
@@ -1132,17 +1134,18 @@ function drawInfo(gr, w, h) {
     label(gr, fitLabel(gname, st(AR_ST.eyebrowB, 0), iw - (ex - x)), st(AR_ST.eyebrowB, C.fg), ex, y);
     y += dp(24);
     if (AR.page === "tracks") drawInfoTracks(gr, a, x, y, iw, w, h);
+    else if (AR.page === "artist") drawInfoArtist(gr, a, x, y, iw, w, h);
     else drawInfoFile(gr, a, x, y, iw, w, h);
     drawInfoPages(gr, x, iw, h);
 }
 
-// the two dots at the bottom: ● FILE  ○ TRACKS (a click on either, or L, turns the page)
-const INFO_PAGES = [["file", "FILE"], ["tracks", "TRACKS"]];
+// the dots at the bottom: ● FILE  ○ TRACKS  ○ ARTIST (a click on one, or L, turns the page; the name goes to the next)
+const INFO_PAGES = [["file", "FILE"], ["tracks", "TRACKS"], ["artist", "ARTIST"]];
 function drawInfoPages(gr, x, iw, h) {
     const cy = h - dp(22), r = dp(3.5), gap = dp(16), s = st(AR_ST.key, C["text-muted"]), names = INFO_PAGES.map(([, t]) => tr(t));
-    const cx0 = x + iw / 2 - gap / 2, at = INFO_PAGES.findIndex(([k]) => k === AR.page);
+    const cx0 = x + iw / 2 - gap * (INFO_PAGES.length - 1) / 2, at = INFO_PAGES.findIndex(([k]) => k === AR.page);
     // a plate under the dots, so the halftone does not run through them
-    const nw = labelWidth(names[at], s), pw = gap + 2 * r + dp(14) + nw + dp(16), px = cx0 - r - dp(10);
+    const nw = labelWidth(names[at], s), pw = (INFO_PAGES.length - 1) * gap + 2 * r + dp(14) + nw + dp(16), px = cx0 - r - dp(10);
     gr.FillSolidRect(px, cy - dp(11), pw, dp(22), C.bg);
     INFO_PAGES.forEach(([k], i) => {
         const cx = cx0 + i * gap;
@@ -1150,9 +1153,9 @@ function drawInfoPages(gr, x, iw, h) {
         else gr.DrawEllipse(cx - r + HAIR / 2, cy - r + HAIR / 2, 2 * r - HAIR, 2 * r - HAIR, Math.max(HAIR, dp(1.2)), C["text-muted"]);
         INFO_HITS.push(["ar-page", cx - dp(8), cy - dp(11), dp(16), dp(22), k]);
     });
-    const lx = cx0 + gap + r + dp(12);
+    const lx = cx0 + (INFO_PAGES.length - 1) * gap + r + dp(12);
     label(gr, names[at], s, lx, cy - Math.round(labelHeight(AR_ST.key) / 2));
-    INFO_HITS.push(["ar-page", lx - dp(2), cy - dp(11), nw + dp(4), dp(22), INFO_PAGES[(at + 1) % 2][0]]);
+    INFO_HITS.push(["ar-page", lx - dp(2), cy - dp(11), nw + dp(4), dp(22), INFO_PAGES[(at + 1) % INFO_PAGES.length][0]]);
 }
 
 // ▶ PLAY ALBUM / PLAY TRACK (inverse) · OPEN ALBUM ↗ (orange focus frame); the key that does the same (Space) is
@@ -1426,6 +1429,7 @@ function inQuad(x, y, q) {   // any polygon
 }
 function archiveMouseMove(x, y, a) {
     AR.mouseX = x;
+    artistMouseMove(x, y, a);
     // the file panel's track rows highlight under the mouse; over a row's marks, the rating they would give shows
     const th = a && (a.id === "ar-track" || a.id === "ar-favt") ? a.data : a && a.id === "ar-rate" ? a.data.i : -1;
     const rh = a && a.id === "ar-rate" ? { i: a.data.i, n: ratingAt(x, a.x + a.data.pad, a.data.size) } : null;
@@ -1436,7 +1440,7 @@ function archiveMouseMove(x, y, a) {
     }
     if (AR.layout === "grid") return gridMouseMove(x, y, a);
     let h = -1;
-    if (!AR.inspOn && x < arrayW() && !a) for (let j = AR.hits.length - 1; j >= 0; j--) if (inQuad(x, y, AR.hits[j].quad)) { h = AR.hits[j].i; break; }
+    if (!AR.inspOn && !AF.open && x < arrayW() && !a) for (let j = AR.hits.length - 1; j >= 0; j--) if (inQuad(x, y, AR.hits[j].quad)) { h = AR.hits[j].i; break; }
     let ht = -1;
     if (a && a.id === "ar-ruler" && AR.rulerGeom) { const R = AR.rulerGeom; ht = clamp(Math.round((x - R.x0) / R.step + R.s0), 0, R.n - 1); }
     if (h !== AR.hover || ht !== AR.hoverTick) { AR.hover = h; AR.hoverTick = ht; clock.wake(); }
@@ -1451,6 +1455,7 @@ function archiveMouseLeave() {
 function archiveClick(x, y, a) {
     if (a && a.id === "ar-pick") { randomPick(); return; }
     pickStop();
+    if (artistClick(a)) return;
     if (AR.inspOn) { AR.inspOn = false; clock.wake(); return; }
     if (a) {
         switch (a.id) {
@@ -1479,6 +1484,7 @@ function archiveClick(x, y, a) {
             case "ar-sort": setSortBy(a.data); return;
         }
     }
+    if (AF.open && x < arrayW()) return;   // the artist file covers the shelves
     if (AR.layout === "grid") { gridClick(x, y, a); return; }
     if (AR.hover >= 0) {
         const r = AR.rows.get(AR.group);
@@ -1490,6 +1496,7 @@ function archiveClick(x, y, a) {
 // (or a sideways wheel, archiveWheelH) it switches shelves (the grid: sections), as ← → do.
 function archiveWheel(step) {
     pickStop();
+    if (AF.open && AR.mouseX < arrayW()) return;
     if (utils.IsKeyPressed(0x10)) { archiveShelf(step > 0 ? 1 : -1); return; }
     if (AR.page === "tracks" && AR.mouseX >= infoX() - dp(20) && curAlbum()) {
         const s = clamp(AR.listScroll - step * 3, 0, AR.listMax);
@@ -1506,6 +1513,10 @@ function archiveShelf(d) {
     if (gi !== AR.group) gridSelect(gi, rowState(gi).sel);
 }
 function archiveKey(vk) {
+    // the artist file: Esc closes it, M (or Tab) turns FILE / MAP; I opens or closes it
+    if (AF.open && vk === 0x1B) { artistFileOpen(false); return true; }
+    if (AF.open && (vk === 0x4D || vk === 0x09)) { artistTab(); return true; }
+    if (vk === 0x49) { artistFileOpen(); return true; }
     if (vk === 0x52) { randomPick(); return true; }   // R
     if (vk === 0x46 && curAlbum()) { openFolder(itemTrack(curAlbum()) || albumFirst(curAlbum())); return true; }   // F: the selected item's folder
     if (PICK.steps && (vk === 0x1B || vk === 0x0D || vk === 0x20 || vk === 0x47 || (vk >= 0x21 && vk <= 0x28))) {
@@ -1519,7 +1530,7 @@ function archiveKey(vk) {
         return vk >= 0x21 && vk <= 0x28;   // navigation keys do nothing while inspecting
     }
     if (vk === 0x47) { setLayout(AR.layout === "grid" ? "array" : "grid"); return true; }   // G
-    if (vk === 0x4C) { setInfoPage(AR.page === "tracks" ? "file" : "tracks"); return true; }   // L: the album file's other page
+    if (vk === 0x4C) { setInfoPage(INFO_PAGES[(INFO_PAGES.findIndex(([k]) => k === AR.page) + 1) % INFO_PAGES.length][0]); return true; }   // L: the album file's next page
     if (AR.layout === "grid" && gridKey(vk)) return true;
     switch (vk) {
         case 0x26: moveAlbum(-1); return true;          // ↑
@@ -1565,6 +1576,7 @@ function archiveMenu(x, y) {
     m.AppendMenuItem(AR.topTitles ? 0x8 : 0, 12, tr("Titles on the cases' top edges"));
     m.AppendMenuItem(AR.page === "tracks" ? 0x8 : 0, 14, tr("Album file: all tracks with ratings") + "\tL");
     m.AppendMenuItem(AR.skipInst ? 0x8 : 0, 15, tr("Play albums without instrumentals"));
+    m.AppendMenuItem(curAlbum() ? 0 : 1, 18, tr("Artist file") + "	I");
     ratingMenu(m, 600);
     const c = curAlbum(), cOn = !!c && (c.album ? isFav(itemTrack(c)) : isFavAlbum(c.key));
     m.AppendMenuItem((c ? 0 : 1) | (cOn ? 0x8 : 0), 16, tr(c && c.album ? "Favourite track" : "Favourite album"));
@@ -1589,6 +1601,7 @@ function archiveMenu(x, y) {
     else if (id >= 500 && HOVER_MODES[id - 500]) { AR.hoverMode = HOVER_MODES[id - 500]; setSetting("caseHover", AR.hoverMode); window.Repaint(); }
     else if (id === 12) { AR.topTitles = !AR.topTitles; setSetting("caseTopTitles", AR.topTitles); window.Repaint(); }
     else if (id === 14) setInfoPage(AR.page === "tracks" ? "file" : "tracks");
+    else if (id === 18) artistFileOpen(true);
     else if (id === 15) { AR.skipInst = !AR.skipInst; setSetting("skipInstrumentals", AR.skipInst); AR.dirtyInfo = true; window.Repaint(); }
     else if (id >= 600 && ratingMenuPick(id, 600)) { AR.listVer++; AR.dirtyInfo = true; window.Repaint(); }
     else if (id === 10) setUnit(showTracks() ? "albums" : "tracks");

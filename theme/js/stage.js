@@ -13,8 +13,9 @@
 // view repaints ten times a second (and every frame while lines scroll); nothing runs while paused, stopped or hidden.
 
 include(fb.ProfilePath + "themes\\audio-archive\\js\\lib\\core.js");
-for (const f of ["emblem", "audio", "ring", "lyrics", "translate", "roman", "waveform", "album", "playlists", "nowplaying", "library"]) include(fb.ProfilePath + `themes\\audio-archive\\js\\lib\\${f}.js`);
+for (const f of ["emblem", "audio", "ring", "lyrics", "translate", "roman", "waveform", "artist", "album", "playlists", "nowplaying", "library"]) include(fb.ProfilePath + `themes\\audio-archive\\js\\lib\\${f}.js`);
 include(fb.ProfilePath + "themes\\audio-archive\\js\\archive.js");
+include(fb.ProfilePath + "themes\\audio-archive\\js\\artist.js");
 include(fb.ProfilePath + "themes\\audio-archive\\js\\grid.js");
 include(fb.ProfilePath + "themes\\audio-archive\\js\\customcase.js");
 include(fb.ProfilePath + "themes\\audio-archive\\js\\style.js");
@@ -685,7 +686,7 @@ function on_mouse_lbtn_up(x, y) {
 }
 function on_char(code) { searchChar(code); }
 // online lyrics (lib/lyrics.js) arrive as downloads
-function on_download_file_done(path, success) { if (lyricsDownloaded(path, success)) window.Repaint(); }
+function on_download_file_done(path, success) { if (lyricsDownloaded(path, success)) window.Repaint(); else artistDownloaded(path, success); }
 function on_locations_added(task, handles) { libLocationsAdded(task, handles); }   // CUE sheets read for the archive (lib/library.js)
 function on_key_down(vk) {
     if (searchKey(vk)) return;

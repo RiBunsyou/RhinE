@@ -290,6 +290,8 @@ function queueSearch() {
 let archiveFiltered = false;
 function filterArchive(text) { archiveFiltered = !!text; send("archive-filter", text); }
 onMessage("search-clear", () => { search.text = ""; filterArchive(""); window.Repaint(); });
+// the Archive shows something by name (an artist file's related artist): the search box says what is filtered
+onMessage("search-set", t => { search.text = String(t || ""); filterArchive(search.text); window.Repaint(); });
 
 // every word must match one of the main fields
 function searchQuery(text) {

@@ -123,6 +123,7 @@ function gridThumbs() {
 function drawGrid(gr) {
     THUMB_KEEP.clear();
     if (!LIB.groups.length) { drawArchiveEmpty(gr); return; }
+    if (AF.open) { drawArtistFile(gr); drawInfoLayer(gr); return; }   // artist.js
     if (GRID.reveal) { gridReveal(true); gridThumbs(); }
     const G = gridGeom(), sy = Math.round(GRID.scroll.x), aw = G.aw, np = fb.GetNowPlaying(), playingKey = np ? albumKey(np) : "";
     const selR = AR.rows.get(AR.group), selI = selR ? selR.sel : -1;
