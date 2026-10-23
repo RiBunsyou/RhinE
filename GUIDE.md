@@ -243,6 +243,13 @@ format and track count on the right), disc track numbers and a running position.
 playlist position, artist, album and year on every row, for mixed playlists and search results. The playing track is
 marked orange in both.
 
+## Community tools
+
+Made by users, not part of RhinE (use them at your own judgement):
+
+- [Foobar-fullscreen](https://github.com/Tianyi-712-Luo/Foobar-fullscreen) by Tianyi-712-Luo: a small separate program
+  that shows foobar2000 borderless across the whole screen, with F11 to switch back to a window.
+
 ## Updates
 
 From 1.3 on the theme updates itself:
