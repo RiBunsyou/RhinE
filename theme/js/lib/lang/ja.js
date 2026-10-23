@@ -279,4 +279,5 @@ I18N["ja"] = {
     "ORCHESTRA": "オーケストラ",
     "CHOIR": "合唱団",
     "CHARACTER": "キャラクター",
+    "IMG · ALBUM COVER": "画像 · アルバムジャケット",
 };

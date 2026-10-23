@@ -38,7 +38,24 @@ function curArtist() {
     const a = curAlbum();
     if (!a) return null;
     const al = albumOf(a) || a, name = String(al.artist || a.artist || "").trim();
-    return { name, rec: artistGet(name, albumFirst(al)), lib: artistLib(name) };
+    artistPrefetch(a);
+    let rec = artistGet(name, albumFirst(al)), shown = name;
+    // a collaboration ("A / B", "A、B、C", "A feat. B") that no service knows as one artist: the first one named
+    const first = firstArtist(name);
+    if (first !== name && rec && rec.state !== "loading" && !rec.mbid && !rec.pic) { rec = artistGet(first, albumFirst(al)); shown = first; }
+    return { name: shown, rec, lib: artistLib(name), album: al };
+}
+const firstArtist = s => (String(s).split(/\s*(?:[\/、,;×&＆]|\s(?:x|feat\.?|ft\.?|with|vs\.?)\s)\s*/i).find(p => p.trim()) || String(s)).trim();
+// the artists of the albums around the selected one, looked up behind it, so that browsing finds them ready
+function artistPrefetch(a) {
+    if (AF.prefKey === a.key) return;
+    AF.prefKey = a.key;
+    const g = curGroup(), i = g ? g.albums.indexOf(a) : -1;
+    if (i < 0) return;
+    for (const d of [1, -1, 2, -2, 3]) {
+        const b = g.albums[i + d], al = b && (albumOf(b) || b);
+        if (al && al.artist) artistGet(al.artist, albumFirst(al), true);
+    }
 }
 const ART_LIB = { gen: -1, map: new Map() };
 function artistLib(name) {
@@ -96,7 +113,7 @@ function artFacts(rec, lib) {
         [tr(person ? "BORN" : "FORMED"), span],
         [tr("MEMBERS"), members],
         [tr("IN LIB"), lib ? tr("{0} ALB · {1} TRK", lib.albums.length, lib.tracks) : "—", "acc"],
-        [tr("GENRE"), rec && rec.genres && rec.genres.length ? rec.genres.slice(0, 2).join(" · ").toUpperCase() : "—"],
+        [tr("GENRE"), rec && rec.genres && rec.genres.length ? rec.genres.slice(0, 2).join(" · ").toUpperCase() : lib && lib.albums[0] && lib.albums[0].genre ? String(lib.albums[0].genre).toUpperCase() : "—"],
         [tr("PLAYS"), lib && lib.plays ? String(lib.plays) : "—"],
     ];
 }
@@ -104,9 +121,11 @@ function artFacts(rec, lib) {
 const ART_TYPES = { Group: "BAND", Person: "SOLO ARTIST", Orchestra: "ORCHESTRA", Choir: "CHOIR", Character: "CHARACTER", Other: "OTHER" };
 const artTypeLine = rec => [rec && ART_TYPES[rec.type] ? tr(ART_TYPES[rec.type]) : "", rec && rec.genres && rec.genres[0] ? rec.genres[0].toUpperCase() : ""].filter(Boolean).join("  ·  ");
 
-// the picture, square, cropped a little above the middle (faces), or a hatched NO IMAGE plate
-function drawArtistPic(gr, rec, x, y, s, frame = true) {
-    const img = artistPicture(rec);
+// the picture, square, cropped a little above the middle (faces); until it is found (or when there is none), the
+// album's own cover; else a hatched NO IMAGE plate
+function drawArtistPic(gr, rec, x, y, s, frame = true, album = null) {
+    let img = artistPicture(rec);
+    if (!img && album) { const th = thumbOf(album); img = th ? th.img : null; }
     if (img) {
         const w = img.Width, h = img.Height, m = Math.min(w, h), sx = (w - m) / 2, sy = h > w ? (h - m) * .25 : 0;
         gr.DrawImage(img, x, y, s, s, sx, sy, m, m);
@@ -119,6 +138,14 @@ function drawArtistPic(gr, rec, x, y, s, frame = true) {
     // the frame a little outside, and the corner squares of the file cards
     box(gr, x - dp(6), y - dp(6), s + dp(12), s + dp(12), withAlpha(C.fg, .3));
     for (const [cx, cy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) gr.FillSolidRect(x - dp(9) + cx * (s + dp(13)), y - dp(9) + cy * (s + dp(13)), dp(5), dp(5), C.fg);
+}
+
+// where the picture comes from: IMG · DEEZER, IMG · <author> · CC BY-SA 4.0 (Commons), ARTIST.JPG, or ALBUM COVER
+function picCredit(rec) {
+    if (rec && rec.localPic) return "IMG · ARTIST.JPG";
+    const p = rec && rec.pic;
+    if (!p || !artistPicture(rec)) return tr("IMG · ALBUM COVER");
+    return ["IMG", p.credit || p.source, p.licence].filter(Boolean).join(" · ").toUpperCase();
 }
 
 // the biography in `lines` lines at most, wrapped; returns the height used
@@ -197,7 +224,7 @@ function drawInfoArtist(gr, a, x, y, iw, w, h) {
     }
     // the picture, and the name beside it
     const ps = dp(118);
-    drawArtistPic(gr, rec, x + dp(8), y + dp(8), ps);
+    drawArtistPic(gr, rec, x + dp(8), y + dp(8), ps, true, A.album);
     const nx = x + ps + dp(32), nw = iw - (nx - x);
     const nf = fontFor(name, 22, 700);
     const lines = gr.EstimateLineWrap(name, nf, nw), two = lines.length > 2;
@@ -207,7 +234,7 @@ function drawInfoArtist(gr, a, x, y, iw, w, h) {
     if (rec.mbName && artNorm(rec.mbName) !== artNorm(name)) { gr.DrawText(rec.mbName, fontFor(rec.mbName, 11, 400), C["fg-soft"], nx, ny, nw, dp(18), DT_SINGLE | DT_ELLIPSIS); ny += dp(20); }
     const tl = artTypeLine(rec);
     if (tl) { label(gr, fitLabel(tl, st(ART_ST.sub, 0), nw), st(ART_ST.sub, C["text-muted"]), nx, ny); ny += dp(18); }
-    if (rec.pic && rec.pic.credit) label(gr, fitLabel(`IMG · ${rec.pic.credit} · ${rec.pic.licence}`.toUpperCase(), st(ART_ST.key, 0), nw), st(ART_ST.key, C["text-muted"]), nx, y + ps - dp(2));
+    label(gr, fitLabel(picCredit(rec), st(ART_ST.key, 0), nw), st(ART_ST.key, C["text-muted"]), nx, y + ps - dp(2));
     y += ps + dp(26);
     // profile
     gr.FillSolidRect(x, y, iw, dp(18), C.fg);
@@ -232,8 +259,7 @@ function drawInfoArtist(gr, a, x, y, iw, w, h) {
     y += drawBio(gr, rec, x, y, iw, bioLines) + dp(8);
     drawBioSource(gr, rec, x, y, iw, INFO_HITS);
     y += dp(26);
-    drawGenreChips(gr, rec, x, y, iw, C.bg);
-    y += dp(32);
+    if (rec.genres && rec.genres.length) { drawGenreChips(gr, rec, x, y, iw, C.bg); y += dp(32); }
     if (rel) {
         label(gr, tr("■ RELATED ARTISTS"), st(ART_ST.sect, C.fg), x, y);
         const n = rec.related.length, own = rec.related.filter(r => inLibrary(r.name)).length;
@@ -363,8 +389,8 @@ function drawArtistLayer(gr, w, h) {
         AF_HITS.push(["art-tab", tx, cy0 + dp(14), tw, dp(20), k]);
         tx -= dp(4);
     }
-    if (AF.tab === "map") drawArtistMap(gr, rec, cx0, cy0, cw, ch);
-    else drawArtistCard(gr, rec, lib, name, no, cx0, cy0, cw, ch);
+    if (AF.tab === "map") drawArtistMap(gr, rec, cx0, cy0, cw, ch, A.album);
+    else drawArtistCard(gr, rec, lib, name, no, cx0, cy0, cw, ch, A.album);
     // FILE NUMBER: ART-0412, the long rule, and the biography beside the card
     const fs = st(ART_ST.fileno, C.fg, withAlpha(C.bg, .01)), ft = `${tr("FILE NUMBER:")} ART-${no}`, fw = labelWidth(ft, fs);
     const fy = dp(36);
@@ -402,15 +428,15 @@ function drawArtistLayer(gr, w, h) {
 }
 
 // FILE: the picture with the access line, the name bar, the loaded plate, the profile and the genres
-function drawArtistCard(gr, rec, lib, name, no, x0, y0, cw, ch) {
+function drawArtistCard(gr, rec, lib, name, no, x0, y0, cw, ch, album) {
     const ps = Math.round(Math.min(ch - dp(150), cw * .44, dp(380))), px = x0 + dp(46), py = y0 + dp(66);
-    drawArtistPic(gr, rec, px, py, ps);
+    drawArtistPic(gr, rec, px, py, ps, true, album);
     // the access line across the picture, corner to corner, with its end squares
     gr.DrawLine(px - dp(10), py + ps + dp(10), px + ps + dp(10), py - dp(10), HAIR * 1.2, C.fg);
     gr.FillSolidRect(px - dp(13), py + ps + dp(7), dp(6), dp(6), C.fg);
     gr.FillSolidRect(px + ps + dp(7), py - dp(13), dp(6), dp(6), C.fg);
     const cs = st(ART_ST.key, C["text-muted"], C["panel-hi"]);
-    if (rec && rec.pic && rec.pic.credit) label(gr, fitLabel(`IMG · ${rec.pic.credit} · ${rec.pic.licence}`.toUpperCase(), cs, ps), cs, px, py + ps + dp(18));
+    label(gr, fitLabel(picCredit(rec), cs, ps), cs, px, py + ps + dp(18));
     label(gr, `${tr("ACCESS:")}  ${tr("PUBLIC")}  ·  ${tr(rec && rec.state === "loading" ? "OPENING" : "FILE OPENED")}`, st(ART_ST.key, C.fg, C["panel-hi"]), px, py + ps + dp(40));
     // right of the picture
     const x = px + ps + dp(46), iw = x0 + cw - dp(36) - x;
@@ -465,7 +491,7 @@ function drawArtistCard(gr, rec, lib, name, no, x0, y0, cw, ch) {
 
 // MAP: the artist in the middle, the related artists around (in the library on the left, to discover on the right);
 // a line as thick as the likeness, dashed to an artist not in the library
-function drawArtistMap(gr, rec, x0, y0, cw, ch) {
+function drawArtistMap(gr, rec, x0, y0, cw, ch, album) {
     const R = ((rec && rec.related) || []).slice(0, 8);
     const cx = x0 + cw / 2, cy = y0 + ch / 2 + dp(10), ps = Math.round(Math.min(ch * .3, dp(190)));
     const rad = Math.min(cw * .38, ch * .4);
@@ -492,7 +518,7 @@ function drawArtistMap(gr, rec, x0, y0, cw, ch) {
         label(gr, t, ts, mx, my - Math.round(labelHeight(ART_ST.key) / 2), 1);
     }
     // the artist
-    drawArtistPic(gr, rec, cx - ps / 2, cy - ps / 2, ps);
+    drawArtistPic(gr, rec, cx - ps / 2, cy - ps / 2, ps, true, album);
     const nt = rec ? rec.name : "", nf = fontFor(nt, 18, 700), nw = Math.min(cw * .5, gr.CalcTextWidth(nt, nf) * 1.15 + dp(40));
     gr.FillSolidRect(cx - nw / 2, cy + ps / 2 + dp(16), nw, dp(32), C.fg);
     gr.DrawText(nt, nf, C.bg, cx - nw / 2 + dp(14), cy + ps / 2 + dp(16), nw - dp(28), dp(32), DT_CENTER_SINGLE | DT_ELLIPSIS);

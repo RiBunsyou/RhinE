@@ -278,4 +278,5 @@ I18N["zh-CN"] = {
     "ORCHESTRA": "管弦乐团",
     "CHOIR": "合唱团",
     "CHARACTER": "虚拟角色",
+    "IMG · ALBUM COVER": "图片 · 专辑封面",
 };

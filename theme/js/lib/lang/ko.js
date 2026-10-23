@@ -278,4 +278,5 @@ I18N["ko"] = {
     "ORCHESTRA": "오케스트라",
     "CHOIR": "합창단",
     "CHARACTER": "캐릭터",
+    "IMG · ALBUM COVER": "이미지 · 앨범 커버",
 };

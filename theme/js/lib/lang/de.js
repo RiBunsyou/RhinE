@@ -278,4 +278,5 @@ I18N["de"] = {
     "ORCHESTRA": "ORCHESTER",
     "CHOIR": "CHOR",
     "CHARACTER": "FIGUR",
+    "IMG · ALBUM COVER": "BILD · ALBUMCOVER",
 };

@@ -228,9 +228,12 @@ still work, so the file follows the selection. Everything comes from open source
 artist is found on [MusicBrainz](https://musicbrainz.org) (by the file's `MUSICBRAINZ_ARTISTID` tag when it has one,
 else by the **artist's name**, which is sent there), the biography is the lead of the artist's
 [Wikipedia](https://www.wikipedia.org) article in the interface language when there is one (else English; CC BY-SA, so
-the source is named and linked), the picture a free one from [Wikimedia Commons](https://commons.wikimedia.org) (its
-author and licence printed under it), and the related artists come from [ListenBrainz](https://listenbrainz.org)
-(listened to by the same people). A file is kept in `<profile>\audio-archive-cache\artists\` and looked up again after 30
+the source is named and linked; NetEase Cloud Music's introduction when there is no article in Chinese), the picture
+comes from [Deezer](https://www.deezer.com) or NetEase Cloud Music (the artist's name is sent to both; the album's own
+cover is shown until it arrives, or when neither has one, and a free [Wikimedia Commons](https://commons.wikimedia.org)
+picture is the last resort), and the related artists come from [ListenBrainz](https://listenbrainz.org) (listened to
+by the same people). A collaboration ("A / B", "A、B", "A feat. B") that no service knows as one artist gets the file
+of the first artist named. A file is kept in `<profile>\audio-archive-cache\artists\` and looked up again after 30
 days. A text file `artist.txt` or a picture `artist.jpg` / `artist.png` beside the album's files is shown instead of
 the biography or the picture.
 
@@ -326,8 +329,8 @@ SIL Open Font License 1.1 (`assets/fonts/OFL.txt`, `OFL-Oxanium.txt`, `OFL-Chakr
 [foobar2000](https://www.foobar2000.org),
 [Columns UI](https://github.com/reupen/columns_ui) and [JSplitter](https://github.com/dima-lur/jsplitter); online
 lyrics from [LRCLIB](https://lrclib.net); artist files from [MusicBrainz](https://musicbrainz.org),
-[Wikipedia](https://www.wikipedia.org) (CC BY-SA), [Wikimedia Commons](https://commons.wikimedia.org) and
-[ListenBrainz](https://listenbrainz.org). The artist file's room and map cases are renders of the archive case model
+[Wikipedia](https://www.wikipedia.org) (CC BY-SA), [ListenBrainz](https://listenbrainz.org), [Deezer](https://www.deezer.com),
+NetEase Cloud Music and [Wikimedia Commons](https://commons.wikimedia.org). The artist file's room and map cases are renders of the archive case model
 from [RhineLabUI](https://github.com/LBEILC/RhineLabUI) by LBEILC (MIT, `assets/render/artist/LICENSE-RhineLabUI.txt`).
 The portable bundle carries foobar2000's unmodified installer, Columns UI
 (LGPL-3.0, its licence alongside) and [7-Zip](https://www.7-zip.org) (LGPL, its licence alongside). The 3D art was

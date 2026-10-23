@@ -2,24 +2,29 @@
 // Artist files (#25): who an artist is, from open sources, cached in the profile.
 //   MusicBrainz   the artist (by the file's MUSICBRAINZ_ARTISTID tag, else by name), type, area, dates, genres,
 //                 members and the Wikidata link
-//   Wikidata      the Wikipedia article in each language, and a free picture on Wikimedia Commons
+//   Wikidata      the Wikipedia article in each language (and a free Commons picture, the last resort)
 //   Wikipedia     the biography, in the interface language when there is one (else English, else any)
 //   ListenBrainz  related artists (listened to by the same people)
+//   Deezer, NetEase Cloud Music   the artist's picture (searched at once, beside everything else), and NetEase's
+//                 introduction when Wikipedia has nothing in Chinese or nothing at all
 //   artist.txt / artist.jpg (or .png) beside the album's files replace the biography / the picture
-// No keys or sign-ins. MusicBrainz asks for one request a second and a named client: requests go out one by one.
+// No keys or sign-ins. MusicBrainz asks for one request a second and a named client, so its requests go out one by
+// one (the shown artist's first); the other services are asked at the same time.
 // Needs lib/translate.js (trHttp) and lib/waveform.js (fnv).
 
 const ART_DIR = fb.ProfilePath + "audio-archive-cache\\artists\\";
 const ART_DAYS = 30, ART_MISS_DAYS = 7;   // a file is looked up again after 30 days; a failed lookup after 7
+const ART_VER = 2;   // files from an older way of looking up (1: no Deezer / NetEase pictures) are looked up again
 const ART_UA = { "User-Agent": "RhinE-AudioArchive/1.10 ( https://github.com/ericzhang12111-cell/RhinE )", Accept: "application/json" };
 // the interface language's Wikipedia first (Chinese in simplified characters), then English, then the artist's own
 const ART_WIKI = { "zh-CN": "zh", ja: "ja", ko: "ko", fr: "fr", de: "de", en: "en" };
 const ART_LANGS = [...new Set([ART_WIKI[UI_LANG] || "en", "en", "ja", "ko", "zh", "fr", "de"])];
-const ART = { mem: new Map(), queue: [], busy: false, last: 0, listeners: [], pics: new Map() };
+const ART = { mem: new Map(), mb: [], mbBusy: false, last: 0, listeners: [], pics: new Map() };
 const TF_MBID = fb.TitleFormat("[%musicbrainz_artistid%]|[%musicbrainz artist id%]");
 
 const artKey = name => fnv(String(name).trim().toLowerCase());
 const artFile = name => ART_DIR + artKey(name) + ".json";
+const artNameKey = s => String(s || "").toLowerCase().replace(/[\s.·・'’"“”!?,()（）\[\]【】「」\-_]/g, "");
 function artSave(rec) {
     if (!utils.IsDirectory(ART_DIR)) utils.CreateFolder(ART_DIR);
     utils.WriteTextFile(artFile(rec.name), JSON.stringify(rec), false);
@@ -27,8 +32,9 @@ function artSave(rec) {
 function artChanged(rec) { ART.mem.set(artKey(rec.name), rec); for (const f of ART.listeners) f(rec); }
 
 // the artist's file, or a waiting one ({ state: "loading" }) while it is looked up; `handle` (any of the artist's
-// tracks) gives the MusicBrainz id tag and the folder for artist.txt / artist.jpg
-function artistGet(name, handle) {
+// tracks) gives the MusicBrainz id tag and the folder for artist.txt / artist.jpg. `prefetch`: looked up behind the
+// shown artist (the neighbouring albums', so that browsing finds them ready)
+function artistGet(name, handle, prefetch = false) {
     name = String(name || "").trim();
     if (!name || /^(various artists|unknown artist|va)$/i.test(name)) return null;
     const k = artKey(name);
@@ -38,13 +44,13 @@ function artistGet(name, handle) {
         if (rec) ART.mem.set(k, rec);
     }
     const age = rec ? Date.now() - (rec.t || 0) : Infinity;
-    const stale = !rec || (rec.state === "none" ? age > ART_MISS_DAYS * 864e5 : age > ART_DAYS * 864e5);
+    const stale = !rec || (rec.v || 1) < ART_VER || (rec.state === "none" ? age > ART_MISS_DAYS * 864e5 : age > ART_DAYS * 864e5);
     if (stale && !(rec && rec.state === "loading")) {
         const keep = rec && rec.state === "ok" ? rec : null;   // an old file stays on show while it is refreshed
         rec = keep || { name, state: "loading", log: [] };
         ART.mem.set(k, rec);
-        artLookup(name, handle, keep);
-    }
+        artLookup(name, handle, keep, !prefetch);
+    } else if (!prefetch && rec.state === "loading") artPromote(name);
     if (handle) artLocal(rec, handle);
     return rec;
 }
@@ -58,52 +64,112 @@ function artLocal(rec, handle) {
     rec.localPic = ["artist.jpg", "artist.png", "artist.jpeg"].map(f => dir + f).find(f => utils.IsFile(f)) || "";
 }
 
-// one request at a time, MusicBrainz at most once a second
-function artHttp(url, done, mb = false) {
-    ART.queue.push({ url, done, mb });
-    artPump();
+// a JSON request: done(data or null, status)
+function artGet(url, done, headers = ART_UA) {
+    trHttp("GET", url, "", headers, (st, txt) => {
+        let d = null;
+        if (st === 200) try { d = JSON.parse(txt); } catch (e) { d = null; }
+        done(d, st);
+    });
 }
-function artPump() {
-    if (ART.busy || !ART.queue.length) return;
-    const job = ART.queue[0], wait = job.mb ? Math.max(0, ART.last + 1100 - Date.now()) : 0;
-    ART.busy = true;
+// MusicBrainz: at most one request a second, the shown artist's first; a throttled (503) or lost request is tried
+// once more
+function artMb(url, done, name, first) {
+    const job = { url, done, name, tries: 0 };
+    if (first) ART.mb.unshift(job); else ART.mb.push(job);
+    artMbPump();
+}
+function artPromote(name) {
+    const i = ART.mb.findIndex(j => j.name === name);
+    if (i > 0) ART.mb.unshift(...ART.mb.splice(i, 1));
+}
+function artMbPump() {
+    if (ART.mbBusy || !ART.mb.length) return;
+    ART.mbBusy = true;
     window.SetTimeout(() => {
-        if (job.mb) ART.last = Date.now();
-        trHttp("GET", job.url, "", ART_UA, (st, txt) => {
-            ART.queue.shift(); ART.busy = false;
-            let d = null;
-            if (st === 200) try { d = JSON.parse(txt); } catch (e) { d = null; }
-            try { job.done(d, st); } finally { artPump(); }
+        const job = ART.mb.shift();
+        ART.last = Date.now();
+        artGet(job.url, (d, st) => {
+            ART.mbBusy = false;
+            if (!d && (st === 503 || st === 0) && job.tries++ < 1) { ART.mb.unshift(job); ART.last = Date.now() + 1000; artMbPump(); return; }
+            try { job.done(d, st); } finally { artMbPump(); }
         });
-    }, wait);
+    }, Math.max(0, ART.last + 1100 - Date.now()));
 }
 
-function artLookup(name, handle, keep) {
-    const rec = { name, state: "loading", log: [], t: Date.now() };
+function artLookup(name, handle, keep, first) {
+    const rec = { name, state: "loading", log: [], t: Date.now(), v: ART_VER };
     const show = keep || rec;
     const log = (what, how) => { show.log = (show.log || []).filter(l => l[0] !== what).concat([[what, how]]); artChanged(show); };
-    const finish = state => {
-        rec.state = state; rec.t = Date.now(); rec.log = show.log;
-        if (state === "none" && keep) { keep.t = Date.now(); artSave(keep); artChanged(keep); return; }   // offline: keep the old file
+    // the lookups run side by side; the file is saved when the last one is back
+    let pending = 0;
+    const begin = () => { pending++; };
+    const end = () => { if (--pending) return; artCommons(rec, log, () => finish()); };
+    const finish = () => {
+        rec.log = show.log; rec.t = Date.now();
+        rec.state = rec.mbid || rec.pic || rec.neBio ? "ok" : "none";
+        if (rec.state === "none" && keep) { keep.t = Date.now(); artSave(keep); artChanged(keep); return; }   // offline: keep the old file
         artSave(rec); artChanged(rec);
     };
+    begin(); artFast(rec, name, log, end);
+    begin();
     const tag = handle ? (TF_MBID.EvalWithMetadb(handle).split("|").find(v => v) || "").split(/[;/,\s]+/)[0] : "";
-    const byId = mbid => artHttp(`https://musicbrainz.org/ws/2/artist/${mbid}?inc=url-rels+genres+artist-rels+aliases&fmt=json`, (d, st) => {
-        if (!d) { log("MUSICBRAINZ", st ? "NOT FOUND" : "OFFLINE"); finish("none"); return; }
+    const byId = (mbid, how) => artMb(`https://musicbrainz.org/ws/2/artist/${mbid}?inc=url-rels+genres+artist-rels+aliases&fmt=json`, (d, st) => {
+        if (!d) { log("MUSICBRAINZ", st ? "NOT FOUND" : "OFFLINE"); end(); return; }
         artFromMb(rec, d);
-        log("MUSICBRAINZ", tag ? "MATCHED · TAG" : "MATCHED · NAME");
-        artRelated(rec, log, () => artWiki(rec, log, () => finish("ok")));
-    }, true);
-    if (/^[0-9a-f-]{36}$/i.test(tag)) { byId(tag); return; }
+        log("MUSICBRAINZ", how);
+        begin(); artRelated(rec, log, end);
+        begin(); artWiki(rec, log, end);
+        end();
+    }, name, first);
+    if (/^[0-9a-f-]{36}$/i.test(tag)) { byId(tag, "MATCHED · TAG"); return; }
     log("MUSICBRAINZ", "SEARCHING");
-    artHttp(`https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(`artist:"${name.replace(/"/g, "")}"`)}&limit=5&fmt=json`, (d, st) => {
-        if (!d) { log("MUSICBRAINZ", st ? "ERROR " + st : "OFFLINE"); finish("none"); return; }
-        // only a sure match: the same name (or one of its aliases), and a high score
-        const norm = s => String(s || "").toLowerCase().replace(/[\s.·・]/g, "");
-        const hit = (d.artists || []).find(a => a.score >= 90 && (norm(a.name) === norm(name) || (a.aliases || []).some(x => norm(x.name) === norm(name))));
-        if (!hit) { log("MUSICBRAINZ", "NO MATCH"); finish("none"); return; }
-        byId(hit.id);
-    }, true);
+    // a sure match only: the same name or alias with a high score; by name first, then anywhere (aliases, sort names)
+    const pick = d => ((d && d.artists) || []).find(a => a.score >= 90 && (artNameKey(a.name) === artNameKey(name) || (a.aliases || []).some(x => artNameKey(x.name) === artNameKey(name))));
+    const search = (q, then) => artMb(`https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(q)}&limit=5&fmt=json`, then, name, first);
+    search(`artist:"${name.replace(/"/g, "")}"`, (d, st) => {
+        const hit = pick(d);
+        if (hit) { byId(hit.id, "MATCHED · NAME"); return; }
+        if (!d && !st) { log("MUSICBRAINZ", "OFFLINE"); end(); return; }
+        search(name.replace(/[+\-&|!(){}\[\]^"~*?:\\/]/g, " "), d2 => {
+            const hit2 = pick(d2);
+            if (hit2) byId(hit2.id, "MATCHED · ALIAS"); else { log("MUSICBRAINZ", "NO MATCH"); end(); }
+        });
+    });
+}
+
+// the picture from Deezer, else NetEase (both asked at once), and NetEase's introduction; `done` when all are back
+function artFast(rec, name, log, done) {
+    let n = 2, dz = "", ne = null;
+    const back = () => {
+        if (--n) return;
+        const url = dz || (ne && ne.pic) || "";
+        if (url) artDownloadPic(rec, url, dz ? "DEEZER" : "NETEASE");
+        log("PICTURE", dz ? "DEEZER" : ne && ne.pic ? "NETEASE" : "NONE YET");
+        if (!ne || !ne.id) { done(); return; }
+        artGet(`https://music.163.com/api/v1/artist/${ne.id}`, d => {
+            const t = d && d.artist && d.artist.briefDesc ? String(d.artist.briefDesc).replace(/\n{2,}/g, "\n").trim() : "";
+            if (t) rec.neBio = { text: t, url: `https://music.163.com/#/artist?id=${ne.id}` };
+            done();
+        }, {});
+    };
+    artGet(`https://api.deezer.com/search/artist?q=${encodeURIComponent(name)}&limit=5`, d => {
+        const a = ((d && d.data) || []).find(x => artNameKey(x.name) === artNameKey(name));
+        if (a && a.picture_xl && !/\/artist\/\//.test(a.picture_xl)) dz = a.picture_xl;   // an artist without a picture has an empty id in the path
+        back();
+    }, {});
+    artGet(`https://music.163.com/api/cloudsearch/pc?type=100&limit=5&s=${encodeURIComponent(name)}`, d => {
+        const a = (((d && d.result) || {}).artists || []).find(x => artNameKey(x.name) === artNameKey(name) || (x.alias || []).some(y => artNameKey(y) === artNameKey(name)));
+        if (a) ne = { id: a.id, pic: a.img1v1Url && !/5639395138885805/.test(a.img1v1Url) ? a.img1v1Url + "?param=640y640" : "" };
+        back();
+    }, {});
+}
+function artDownloadPic(rec, url, source, extra = {}) {
+    const out = ART_DIR + artKey(rec.name) + (/\.png(\?|$)/i.test(url) ? ".png" : ".jpg");
+    rec.pic = Object.assign({ file: out, source, credit: "", licence: "" }, extra);
+    if (!utils.IsDirectory(ART_DIR)) utils.CreateFolder(ART_DIR);
+    ART.pics.delete(out);
+    utils.DownloadFileAsync(url, out);   // arrives through artistDownloaded()
 }
 
 function artFromMb(rec, d) {
@@ -119,7 +185,7 @@ function artFromMb(rec, d) {
 }
 
 function artRelated(rec, log, next) {
-    artHttp(`https://labs.api.listenbrainz.org/similar-artists/json?artist_mbids=${rec.mbid}&algorithm=session_based_days_7500_session_300_contribution_5_threshold_10_limit_100_filter_True_skip_30`, d => {
+    artGet(`https://labs.api.listenbrainz.org/similar-artists/json?artist_mbids=${rec.mbid}&algorithm=session_based_days_7500_session_300_contribution_5_threshold_10_limit_100_filter_True_skip_30`, d => {
         const list = Array.isArray(d) ? d : [];
         const top = list.length ? list[0].score || 1 : 1;
         rec.related = list.slice(0, 8).map(a => ({ name: a.name, mbid: a.artist_mbid, score: Math.round(100 * (a.score || 0) / top) / 100 }));
@@ -132,18 +198,17 @@ function artWiki(rec, log, next) {
     const q = (/Q\d+$/.exec(rec.wikidata) || [])[0];
     if (!q) { log("WIKIPEDIA", "NO ARTICLE"); next(); return; }
     const sites = ART_LANGS.map(l => l + "wiki").join("|");
-    artHttp(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${q}&props=sitelinks|claims&sitefilter=${sites}&format=json`, d => {
+    artGet(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${q}&props=sitelinks|claims&sitefilter=${sites}&format=json`, d => {
         const e = d && d.entities && d.entities[q];
         if (!e) { log("WIKIDATA", "OFFLINE"); next(); return; }
         rec.wikiTitles = {};
         for (const l of ART_LANGS) if (e.sitelinks && e.sitelinks[l + "wiki"]) rec.wikiTitles[l] = e.sitelinks[l + "wiki"].title;
         const img = ((((e.claims || {}).P18 || [])[0] || {}).mainsnak || {}).datavalue;
-        const pic = img ? img.value : "";
+        rec.commons = img ? img.value : "";   // used only when Deezer and NetEase have no picture (artCommons)
         // the biography in the first language that has an article (more are fetched when the language changes)
         const lang = ART_LANGS.find(l => rec.wikiTitles[l]);
-        const then = () => pic ? artPicture(rec, pic, log, next) : next();
-        if (!lang) { log("WIKIPEDIA", "NO ARTICLE"); then(); return; }
-        artWikiText(rec, lang, ok => { log("WIKIPEDIA", ok ? `${lang.toUpperCase()} · ${(rec.wiki[lang].text.length / 1024).toFixed(1)} KB` : "OFFLINE"); then(); });
+        if (!lang) { log("WIKIPEDIA", "NO ARTICLE"); next(); return; }
+        artWikiText(rec, lang, ok => { log("WIKIPEDIA", ok ? `${lang.toUpperCase()} · ${(rec.wiki[lang].text.length / 1024).toFixed(1)} KB` : "OFFLINE"); next(); });
     });
 }
 
@@ -152,7 +217,7 @@ function artWiki(rec, log, next) {
 function artWikiText(rec, lang, done) {
     const title = rec.wikiTitles && rec.wikiTitles[lang];
     if (!title) { done(false); return; }
-    artHttp(`https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&exsectionformat=plain&exchars=2400&redirects=1&format=json&titles=${encodeURIComponent(title)}${lang === "zh" ? "&variant=zh-hans" : ""}`, d => {
+    artGet(`https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&exsectionformat=plain&exchars=2400&redirects=1&format=json&titles=${encodeURIComponent(title)}${lang === "zh" ? "&variant=zh-hans" : ""}`, d => {
         const p = d && d.query && d.query.pages && Object.values(d.query.pages)[0];
         const text = p && p.extract ? p.extract.replace(/\n{2,}/g, "\n").trim() : "";
         if (!text) { done(false); return; }
@@ -162,18 +227,16 @@ function artWikiText(rec, lang, done) {
     });
 }
 
-// the Commons picture, 640 px wide, with its author and licence (shown under it)
-function artPicture(rec, file, log, next) {
-    artHttp(`https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent("File:" + file)}&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=640&format=json`, d => {
+// the Commons picture, 640 px wide, with its author and licence (shown under it): when nothing else had one
+function artCommons(rec, log, next) {
+    if (rec.pic || !rec.commons) { next(); return; }
+    artGet(`https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent("File:" + rec.commons)}&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=640&format=json`, d => {
         const p = d && d.query && d.query.pages, ii = p && (Object.values(p)[0].imageinfo || [])[0];
-        if (!ii || !ii.thumburl) { log("PICTURE", "NONE"); next(); return; }
-        const m = ii.extmetadata || {}, strip = s => String(s || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-        const out = ART_DIR + artKey(rec.name) + (/\.png$/i.test(ii.thumburl) ? ".png" : ".jpg");
-        rec.pic = { file: out, page: ii.descriptionurl || "", credit: strip((m.Artist || {}).value).slice(0, 60), licence: strip((m.LicenseShortName || {}).value) };
-        if (!utils.IsDirectory(ART_DIR)) utils.CreateFolder(ART_DIR);
-        ART.pics.delete(out);
-        utils.DownloadFileAsync(ii.thumburl, out);   // arrives through artistDownloaded()
-        log("PICTURE", "COMMONS");
+        if (ii && ii.thumburl) {
+            const m = ii.extmetadata || {}, strip = s => String(s || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+            artDownloadPic(rec, ii.thumburl, "COMMONS", { page: ii.descriptionurl || "", credit: strip((m.Artist || {}).value).slice(0, 60), licence: strip((m.LicenseShortName || {}).value) });
+            log("PICTURE", "COMMONS");
+        }
         next();
     });
 }
@@ -195,8 +258,12 @@ function artistBio(rec) {
         rec.wikiAsked = true;
         artWikiText(rec, want, ok => { if (ok) { artSave(rec); artChanged(rec); } });
     }
+    // Chinese readers get NetEase's introduction before an article in another language; others get it last
+    const ne = rec.neBio ? { text: rec.neBio.text, source: "NETEASE", lang: "zh", url: rec.neBio.url } : null;
+    if (w[want]) return { text: w[want].text, source: "WIKIPEDIA", lang: want, url: w[want].url, licence: "CC BY-SA 4.0" };
+    if (want === "zh" && ne) return ne;
     const lang = ART_LANGS.find(l => w[l]);
-    return lang ? { text: w[lang].text, source: "WIKIPEDIA", lang, url: w[lang].url, licence: "CC BY-SA 4.0" } : null;
+    return lang ? { text: w[lang].text, source: "WIKIPEDIA", lang, url: w[lang].url, licence: "CC BY-SA 4.0" } : ne;
 }
 
 // the picture as a Direct2D image (artist.jpg first), or null
