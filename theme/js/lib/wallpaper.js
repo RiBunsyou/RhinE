@@ -1,8 +1,8 @@
 ﻿"use strict";
-// Wallpaper (05 STYLE › DISPLAY › WALLPAPER): a picture of the user's own behind the views the user picks: ARCHIVE,
-// PLAYLISTS (its side columns: the native playlist cannot show one), LYRICS and SIGNAL. It covers the whole window (cropped to fill it) and each panel draws its own part, so the parts
-// line up across the panels (frame.js sends where each panel sits: "geom"); a veil of the page colour keeps the text
-// readable. Looks:
+// Wallpaper (05 STYLE › DISPLAY › WALLPAPER): a picture behind the views the user picks: ARCHIVE, PLAYLISTS (its side
+// columns: the native playlist cannot show one), LYRICS and SIGNAL; one that comes with the theme or one of the user's
+// own. It covers the whole window (cropped to fill it) and each panel draws its own part, so the parts line up across
+// the panels (frame.js sends where each panel sits: "geom"); a veil of the page colour keeps the text readable. Looks:
 //   CLEAR     the picture as it is
 //   FROST     blurred
 //   HALFTONE  a dot screen in the picture's own colours, each dot as large as its tone stands out from the page
@@ -14,6 +14,13 @@ const WP_LOOKS = [["clear", "CLEAR"], ["frost", "FROST"], ["halftone", "HALFTONE
 const WP_VEILS = [["low", "LOW"], ["mid", "MID"], ["high", "HIGH"]], WP_VEIL = { low: .42, mid: .6, high: .76 };
 const WP_VIEWS = [["archive", "ARCHIVE"], ["playlists", "PLAYLISTS"], ["lyrics", "LYRICS"], ["signal", "SIGNAL"]];
 const WP_START = { path: "", views: ["playlists", "lyrics", "signal"], look: "clear", veil: "mid" };
+// The pictures that come with the theme (assets/wallpapers), each in a dark and a light version that follow the mode.
+// The setting keeps "theme:NAME" rather than a file path, so they still open after a portable foobar2000 moves.
+const WP_BUILTIN = [["topography", "TOPOGRAPHY"], ["streams", "STREAMS"], ["print", "PRINT"], ["survey", "SURVEY"]];
+const WP_DIR = THEME_ROOT + "assets\\wallpapers\\";
+const wpFile = path => path.startsWith("theme:") ? WP_DIR + `${path.slice(6)}-${MODE}.jpg` : path;
+// the name to show: a built-in picture's own, else the file's
+const wpName = path => { const b = WP_BUILTIN.find(k => "theme:" + k[0] === path); return b ? tr(b[1]) : path.slice(path.lastIndexOf("\\") + 1).toUpperCase(); };
 function pickWallpaper(w) {
     w = w && typeof w === "object" ? w : {};
     return { path: typeof w.path === "string" ? w.path : "",
@@ -30,16 +37,17 @@ const wallpaperOn = where => { const b = STATE.wallpaper; return !!(b && b.path 
 
 const WP = { src: null, srcPath: "", loading: "", failed: {}, comp: null, key: "", want: "", timer: 0 };
 function wpSource(path) {
-    if (WP.srcPath === path && WP.src) return WP.src;
-    if (WP.loading === path) return null;
-    WP.loading = path;
-    d2d.LoadImageAsyncV2(0, path).then(img => {
-        if (WP.loading !== path) return;
+    const file = wpFile(path);
+    if (WP.srcPath === file && WP.src) return WP.src;
+    if (WP.loading === file) return null;
+    WP.loading = file;
+    d2d.LoadImageAsyncV2(0, file).then(img => {
+        if (WP.loading !== file) return;
         WP.loading = "";
         if (!img) { WP.failed[path] = true; window.Repaint(); return; }
-        WP.src = img; WP.srcPath = path; WP.key = "";
+        WP.src = img; WP.srcPath = file; WP.key = "";
         window.Repaint();
-    }, () => { if (WP.loading === path) { WP.loading = ""; WP.failed[path] = true; window.Repaint(); } });
+    }, () => { if (WP.loading === file) { WP.loading = ""; WP.failed[path] = true; window.Repaint(); } });
     return null;
 }
 
@@ -135,5 +143,5 @@ let WP_WAS = "";
 onMessage("state", () => {
     const b = STATE.wallpaper, now = JSON.stringify(b);
     if (now !== WP_WAS) { WP_WAS = now; window.Repaint(); }
-    if (!b || !b.path || b.path !== WP.srcPath) { WP.src = null; WP.srcPath = ""; WP.comp = null; WP.key = ""; }
+    if (!b || !b.path || wpFile(b.path) !== WP.srcPath) { WP.src = null; WP.srcPath = ""; WP.comp = null; WP.key = ""; }
 });

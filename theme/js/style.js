@@ -41,13 +41,13 @@ const SCHEME_ABOUT = {
     matcha: "Creamy white and matcha green",
     custom: "Your own: pick the page, the text and the accent",
 };
-const STY = { img: new Map(), hover: null, gen: 0, shown: false };   // img: skin id -> { array, hero }
+const STY = { img: new Map(), thumbs: new Map(), hover: null, gen: 0, shown: false };   // img: skin id -> { array, hero }; thumbs: wpThumb
 
 function styleShown(on) {
     if (on === STY.shown) return;
     STY.shown = on;
     if (on) { listSkins(true); return; }
-    STY.img.clear(); STY.gen++; STY.hover = null;
+    STY.img.clear(); STY.thumbs.clear(); STY.gen++; STY.hover = null;
 }
 function skinImages(s) {
     let e = STY.img.get(s.id);
@@ -314,7 +314,7 @@ function drawScaleRow(gr, x, y, x1) {
     }
     // WALLPAPER · IMG.JPG ›: opens its editor on the right
     const b = STATE.wallpaper || WP_START, on = STY.edit === "wallpaper", hov = STY.wpHover === "open";
-    const wt = `${tr("WALLPAPER")}  ·  ${b.path ? b.path.slice(b.path.lastIndexOf("\\") + 1).toUpperCase() : tr("NONE")}  ›`;
+    const wt = `${tr("WALLPAPER")}  ·  ${b.path ? wpName(b.path) : tr("NONE")}  ›`;
     const ws = st(GRID_ST.count, on ? C.bg : C.fg, on ? C.fg : C.bg), wh = dp(22), ww = Math.min(x1 - x, labelWidth(wt, ws) + dp(24));
     if (xl > x && xl + ww > x1) { xl = x; y += dp(34); }
     if (gr) {
@@ -339,15 +339,15 @@ function drawScaleRow(gr, x, y, x1) {
 }
 
 // The wallpaper's editor (lib/wallpaper.js): the picture as the stage shows it (look and veil applied), CHOOSE / REMOVE,
-// then where it shows, its look and its veil.
+// the pictures that come with the theme, then where it shows, its look and its veil.
 function drawWallpaperEditor(gr, x0, y, w, y1) {
     const b = STATE.wallpaper || WP_START, s = st(GRID_ST.count, 0), hh = dp(22);
     const ty = yy => yy + Math.round((hh - labelHeight(GRID_ST.count)) / 2);
     label(gr, tr("WALLPAPER"), st(STY_ST.big, C.fg), x0, y);
     y += labelHeight(STY_ST.big) + dp(6);
-    text(gr, tr("A picture of your own behind the views below."), 10, 500, C["fg-soft"], x0, y, w, dp(18));
+    text(gr, tr("A picture behind the views below: one that comes with the theme, or one of your own."), 10, 500, C["fg-soft"], x0, y, w, dp(18));
     y += dp(30);
-    const ph = Math.max(dp(80), Math.min(Math.round(w * 9 / 16), y1 - y - dp(200)));
+    const ph = Math.max(dp(80), Math.min(Math.round(w * 9 / 16), y1 - y - dp(200) - drawWallpaperBuiltIns(null, x0, 0, w)));
     if (!(b.path && wallpaperPreview(gr, x0, y, w, ph))) {
         const t = tr(b.path ? (WP.failed[b.path] ? "CANNOT OPEN THE PICTURE" : "LOADING …") : "NO PICTURE");
         label(gr, t, st(STY_ST.tiny, b.path && WP.failed[b.path] ? C.accent : C["text-muted"]), x0 + w / 2, y + ph / 2 - dp(6), 1);
@@ -360,13 +360,14 @@ function drawWallpaperEditor(gr, x0, y, w, y1) {
     label(gr, pick, st(GRID_ST.count, hov ? C["on-accent"] : C.bg, hov ? C.accent : C.fg), x0 + dp(12), ty(y));
     hits.add("sty-wp-pick", x0, y, pw, hh);
     if (b.path) {
-        const rm = tr("REMOVE"), rw = labelWidth(rm, s) + dp(24), name = b.path.slice(b.path.lastIndexOf("\\") + 1).toUpperCase(), nst = st(GRID_ST.count, C["fg-soft"]);
+        const rm = tr("REMOVE"), rw = labelWidth(rm, s) + dp(24), name = wpName(b.path), nst = st(GRID_ST.count, C["fg-soft"]);
         label(gr, fitLabel(name, nst, w - pw - rw - dp(28)), nst, x0 + pw + dp(14), ty(y));
         box(gr, x0 + w - rw, y, rw, hh, STY.wpHover === "off" ? C.accent : C["line-dim"]);
         label(gr, rm, st(GRID_ST.count, C.fg), x0 + w - rw + dp(12), ty(y));
         hits.add("sty-wp-off", x0 + w - rw, y, rw, hh);
     }
     y += dp(40);
+    y = drawWallpaperBuiltIns(gr, x0, y, w);
     // VIEWS, LOOK, VEIL: one row each
     for (const gp of wallpaperGroups()) {
         const [title, items, cur, id, marks] = gp, [[xr]] = wrapGroups([gp], x0, y, x0 + w).at;
@@ -378,6 +379,33 @@ const wallpaperGroups = () => {
     const b = STATE.wallpaper || WP_START;
     return [["VIEWS", WP_VIEWS, b.views, "sty-wp-view", true], ["LOOK", WP_LOOKS, b.look, "sty-wp-look"], ["VEIL", WP_VEILS, b.veil, "sty-wp-veil"]];
 };
+// COMES WITH THE THEME: the built-in pictures (WP_BUILTIN) as thumbnails in the mode's version, a click puts one up.
+// Returns the y below the row (gr null: only measures, from y 0).
+function drawWallpaperBuiltIns(gr, x0, y, w) {
+    const b = STATE.wallpaper || WP_START, gap = Math.round(dp(10)), tw = Math.min(Math.round(dp(150)), Math.floor((w - gap * 3) / 4)), th = Math.round(tw * 9 / 16);
+    const y1 = Math.round(y + labelHeight(GRID_ST.count) + dp(8)), ny = y1 + th + Math.round(dp(6)), end = ny + labelHeight(STY_ST.tiny) + dp(18);
+    if (!gr) return end;
+    label(gr, tr("COMES WITH THE THEME"), st(GRID_ST.count, C["text-muted"]), x0, y);
+    WP_BUILTIN.forEach(([id, name], i) => {
+        const x = Math.round(x0) + i * (tw + gap), on = b.path === "theme:" + id, img = wpThumb(id);
+        if (img) gr.DrawImage(img, x, y1, tw, th, 0, 0, img.Width, img.Height);
+        else gr.FillSolidRect(x, y1, tw, th, C["line-faint"]);
+        box(gr, x, y1, tw, th, on || STY.wpHover === "bi:" + id ? C.accent : C["line-faint"], on ? HAIR * 2 : HAIR);
+        const ns = st(STY_ST.tiny, on ? C.fg : C["text-muted"]);
+        label(gr, fitLabel(tr(name), ns, tw), ns, x, ny);
+        hits.add("sty-wp-builtin", x, y1, tw, ny - y1 + labelHeight(STY_ST.tiny), id);
+    });
+    return end;
+}
+// a built-in picture's thumbnail (assets/wallpapers/thumbs) in the mode's version: null while it loads
+function wpThumb(id) {
+    const k = `${id}-${MODE}`;
+    if (STY.thumbs.has(k)) return STY.thumbs.get(k);
+    STY.thumbs.set(k, null);
+    const g = STY.gen;
+    d2d.LoadImageAsyncV2(0, WP_DIR + `thumbs\\${k}.jpg`).then(img => { if (img && g === STY.gen) { STY.thumbs.set(k, img); window.Repaint(); } }, () => {});
+    return null;
+}
 
 // the preview of the card under the mouse, else of the skin and scheme in use
 function drawStylePreview(gr, g, skins) {
@@ -575,7 +603,7 @@ function setCustom(u) {
 
 // ------------------------------------------------------------------------------------------------------- input
 function styleMouseMove(a) {
-    const wh = a && (a.id === "sty-wp-pick" || a.id === "sty-wp-off" || a.id === "sty-wp-open") ? a.id.slice(7) : null;
+    const wh = !a ? null : a.id === "sty-wp-pick" || a.id === "sty-wp-off" || a.id === "sty-wp-open" ? a.id.slice(7) : a.id === "sty-wp-builtin" ? "bi:" + a.data : null;
     if (wh !== (STY.wpHover || null)) { STY.wpHover = wh; window.Repaint(); }
     const cp = a && a.id === "sty-cpick" ? a.data : null;
     if (cp !== (STY.cpick || null)) { STY.cpick = cp; window.Repaint(); }
@@ -635,6 +663,10 @@ function styleClick(a) {
         try { p = utils.FilePicker(tr("Choose a picture"), dir, "Pictures (*.jpg;*.jpeg;*.png;*.bmp;*.webp)|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All files (*.*)|*.*", 0, window.ID); }
         catch (e) { return; }
         if (p) { delete WP.failed[p]; send("wallpaper", { path: p, views: b.views.length ? b.views : WP_START.views }); }
+    }
+    else if (a.id === "sty-wp-builtin") {
+        const b = STATE.wallpaper || WP_START, p = "theme:" + a.data;
+        if (p !== b.path) { delete WP.failed[p]; send("wallpaper", { path: p, views: b.views.length ? b.views : WP_START.views }); }
     }
     else if (a.id === "sty-wp-off") send("wallpaper", { path: "" });
     else if (a.id === "sty-wp-view") {

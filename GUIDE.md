@@ -129,7 +129,7 @@ Running it again keeps the foobar2000 folder and installs the theme again.
 | Archive grid: scroll | the wheel, or drag the scroll bar at its right edge (a click on the bar jumps there) | `PgUp` `PgDn` |
 | Case skin | `MENU › Audio Archive › Case skin`, or right-click the Archive | — |
 | Your own case | the `CUSTOM` card under `CASE SKIN` in `05 STYLE`: a base colour, an accent and a pattern (stripes, blocks or an edge band), then `MAKE THIS CASE` | — |
-| Wallpaper | `WALLPAPER ›` under `DISPLAY` in `05 STYLE`: a picture of your own behind the views you pick (Archive, Playlists, Lyrics, Signal), clear, frosted or as a halftone, with a light, medium or strong veil | — |
+| Wallpaper | `WALLPAPER ›` under `DISPLAY` in `05 STYLE`: one of the four pictures under `COMES WITH THE THEME` (Topography, Streams, Print, Survey, each in a dark and a light version that follows the mode) or a picture of your own, behind the views you pick (Archive, Playlists, Lyrics, Signal), clear, frosted or as a halftone, with a light, medium or strong veil | — |
 | Title tag: the song's title printed on a rendered tag on the signal profile card and the album file | `TITLE TAG` under `DISPLAY` in `05 STYLE`: a finish (plastic, paper, brushed metal, translucent, transparent, Tide or Aurora glass) or off; `TAG SHAPE`, `TAG COLOURS` (the scheme's, the case's or your own), `TAG BODY` and `TAG OPACITY`. The `TITLE TAG` cards show every finish; hover one for a preview | — |
 | Font: Geist Mono, Oxanium or Chakra Petch | `FONT` under `DISPLAY` in `05 STYLE` (the native playlist keeps its own font) | — |
 | Header emblem: the Möbius ring or nested triangles | `EMBLEM` under `DISPLAY` in `05 STYLE` | — |

@@ -15,6 +15,10 @@ Newest version first. Download any version from [Releases](https://github.com/er
   并可 `播放艺术家`。`打开档案`（`I`）在货架上方打开艺术家档案，背景是自下而上照亮的档案室，其中的 `关系图` 把相关艺术家排在周围。
   资料来自 MusicBrainz、维基百科（有条目时使用界面语言）、维基共享资源和 ListenBrainz，保存 30 天；专辑旁的 `artist.txt` /
   `artist.jpg` 会代替简介或照片（#25，感谢 @RusticBewildered 的建议）。
+- Wallpapers that come with the theme: `TOPOGRAPHY`, `STREAMS`, `PRINT` and `SURVEY`, each in a dark and a light
+  version that follows the mode, kept quiet in the middle where the text sits. Pick one under `COMES WITH THE THEME` in
+  `05 STYLE` › `DISPLAY` › `WALLPAPER ›`; a picture of your own works as before. 主题自带壁纸：`地形`、`流线`、`印刷` 和
+  `测绘`，各有深色与浅色版本，随明暗模式切换，中间留白给文字。在 `05 外观` › `显示` › `壁纸 ›` 的 `主题自带` 中选择；自己的图片照常可用。
 
 ## 1.9.1 — 2026-10-20
 
