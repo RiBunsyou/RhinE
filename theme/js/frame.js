@@ -27,7 +27,7 @@ STATE.lyricsTrans = pickLyricsTrans(getSetting("lyricsTrans", defaultLyricsTrans
 // the permission the AUTO fallback needs; migrateLyricsSettings() above carries it over from lyricsNetease
 STATE.lyricsNeteaseAuto = !!getSetting("lyricsNeteaseAuto", SYSTEM_LANG.startsWith("zh"));
 STATE.lyricsRoma = getSetting("lyricsRoma", false) === true;   // romanized lyrics (lib/roman.js)
-STATE.textScale = pickScale(+getSetting("textScale", 1), TEXT_SCALES);
+STATE.textScale = textScaleOf(getSetting("textScale", 1));
 STATE.arrayScale = pickScale(+getSetting("arrayScale", 1), ARRAY_SCALES);
 setTextScale(STATE.textScale);   // the root panel's own copy: the Playlists view's column widths follow it
 STATE.inspectScale = pickScale(+getSetting("inspectScale", 1.3), INSPECT_SCALES);
@@ -43,6 +43,7 @@ STATE.tagCustom = getSetting("tagCustom", null);
 STATE.tagOpacity = pickTagOpacity(getSetting("tagOpacity", 50));
 STATE.tagBody = pickTagBody(getSetting("tagBody", "solid"));
 STATE.font = pickFont(getSetting("font", "geist"));
+STATE.sides = pickSides(getSetting("sides", null));
 REDUCE_MOTION = STATE.reduce;
 RELOAD_ON_LANG = false;   // see lib/bus.js
 const P = {};          // child name -> PanelObject
@@ -52,7 +53,8 @@ const broadcast = () => send("state", { view: STATE.view, preset: STATE.preset, 
                                    lyricsSource: STATE.lyricsSource, lyricsTrans: STATE.lyricsTrans, lyricsNeteaseAuto: STATE.lyricsNeteaseAuto, lyricsRoma: STATE.lyricsRoma,
                                    textScale: STATE.textScale, arrayScale: STATE.arrayScale, inspectScale: STATE.inspectScale, floor: STATE.floor, wallpaper: STATE.wallpaper,
                                    halftone: STATE.halftone, halftoneLevel: STATE.halftoneLevel, emblem: STATE.emblem, tag: STATE.tag,
-                                   tagShape: STATE.tagShape, tagColours: STATE.tagColours, tagCustom: STATE.tagCustom, tagOpacity: STATE.tagOpacity, tagBody: STATE.tagBody, font: STATE.font });
+                                   tagShape: STATE.tagShape, tagColours: STATE.tagColours, tagCustom: STATE.tagCustom, tagOpacity: STATE.tagOpacity, tagBody: STATE.tagBody, font: STATE.font,
+                                   sides: STATE.sides });
 
 // One-off: settings written before this change kept three switches for the lyrics (lyricsOnline, lyricsNetease,
 // lyricsTranslate). They map onto lyricsSource and lyricsTrans, and lyricsNeteaseAuto keeps the permission the old
@@ -119,8 +121,11 @@ function regions() {
     // Archive, Lyrics and Signal are all drawn by the stage panel
     if (STATE.view !== "playlists") return Object.assign(r, { stage: [0, top, W, vh] });
     // the manager panel also draws the track rail along the playlist's left edge
-    const rail = dp(M["manager-width"] * Math.min(TEXT_SCALE, 1.3) + M["rail-width"]);   // the list widens with the text size
-    const card = W - dp(M["card-width"] + 2 * M.gutter), head = dp(M["playlist-head"]);
+    // the list (as wide as the user set it) widens with the text size; the native playlist keeps at least 320 dp,
+    // both sides giving way to it
+    let rail = dp(side("list") * Math.min(TEXT_SCALE, 1.3) + M["rail-width"]), card = W - dp(side("card") + 2 * M.gutter);
+    const head = dp(M["playlist-head"]), short = dp(320) - (card - rail);
+    if (short > 0) { rail = Math.max(dp(170 + M["rail-width"]), rail - short / 2); card = Math.min(W - dp(264 + 2 * M.gutter), card + short / 2); }
     return Object.assign(r, {
         manager: [0, top, rail, vh],
         head: [rail, top, card - rail, head], playlist: [rail, top + head, card - rail, vh - head],
@@ -265,7 +270,7 @@ onMessage("lyrics-source", v => { STATE.lyricsSource = pickLyricsSource(v); setS
 onMessage("lyrics-trans", v => { STATE.lyricsTrans = pickLyricsTrans(v); setSetting("lyricsTrans", STATE.lyricsTrans); broadcast(); });
 onMessage("lyrics-netease-auto", on => { STATE.lyricsNeteaseAuto = !!on; setSetting("lyricsNeteaseAuto", STATE.lyricsNeteaseAuto); broadcast(); });
 onMessage("lyrics-roma", on => { STATE.lyricsRoma = !!on; setSetting("lyricsRoma", STATE.lyricsRoma); broadcast(); });
-onMessage("text-scale", v => { STATE.textScale = pickScale(+v, TEXT_SCALES); setSetting("textScale", STATE.textScale); setTextScale(STATE.textScale); broadcast(); layout(); });
+onMessage("text-scale", v => { STATE.textScale = textScaleOf(v); setSetting("textScale", STATE.textScale); setTextScale(STATE.textScale); broadcast(); layout(); });
 onMessage("inspect-scale", v => { STATE.inspectScale = pickScale(+v, INSPECT_SCALES); setSetting("inspectScale", STATE.inspectScale); broadcast(); });
 onMessage("array-scale", v => { STATE.arrayScale = pickScale(+v, ARRAY_SCALES); setSetting("arrayScale", STATE.arrayScale); broadcast(); });
 onMessage("floor", v => { STATE.floor = pickFloor(v); setSetting("floor", STATE.floor); broadcast(); });
@@ -279,6 +284,13 @@ onMessage("tag-body", v => { STATE.tagBody = pickTagBody(v); setSetting("tagBody
 onMessage("tag-opacity", v => { STATE.tagOpacity = pickTagOpacity(v); setSetting("tagOpacity", STATE.tagOpacity); broadcast(); });
 onMessage("tag-custom", v => { STATE.tagCustom = Array.isArray(v) ? v : null; setSetting("tagCustom", STATE.tagCustom, true); broadcast(); });
 onMessage("font", v => { STATE.font = pickFont(v); setSetting("font", STATE.font); setFontFamily(STATE.font); broadcast(); layout(); });
+// a side column's new width (lib/bus.js SIDES_START): laid out at once, kept at the end of a drag
+onMessage("sides", d => {
+    STATE.sides = pickSides(Object.assign({}, STATE.sides, d && d.w));
+    if (d && d.save) setSetting("sides", STATE.sides, true);
+    broadcast();
+    layout();
+});
 // the wallpaper's settings, changed in part (05 STYLE)
 onMessage("wallpaper", w => { STATE.wallpaper = pickWallpaper(Object.assign({}, STATE.wallpaper, w)); setSetting("wallpaper", STATE.wallpaper, true); broadcast(); });
 onMessage("grain", on => { STATE.grain = !!on; setSetting("grain", STATE.grain); broadcast(); window.Repaint(); });

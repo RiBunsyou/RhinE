@@ -109,7 +109,7 @@ function styleGeom(nSkins = 10, nSchemes = 5, nTags = 0) {
     const rows = Math.ceil(nSkins / cols), srows = Math.ceil(nSchemes / cols), trows = Math.ceil(nTags / cols), heads = nTags ? 4 : 3;
     const byW = (lw - (cols - 1) * gap) / cols;
     // the section heads, then the DISPLAY rows (as many as they wrap into)
-    const avail = H - top - dp(24) - dp(30) * heads - dp(10) * (heads - 1) - drawScaleRow(null, 0, 0, lw) - dp(22) - dp(24);
+    const avail = H - top - dp(24) - dp(30) * heads - dp(10) * (heads - 1) - drawDisplay(null, 0, 0, lw) - dp(24);
     const byH = (avail - (rows + srows + trows) * gap) / (rows * 1.02 + srows * .86 + trows * TAG_CARD_H);
     const cw = Math.floor(Math.max(dp(56), Math.min(byW, byH)));
     return { m, top, gap, lx1, cols, cw, skinH: Math.round(cw * 1.02), schemeH: Math.round(cw * .86), tagH: Math.round(cw * TAG_CARD_H) };
@@ -117,8 +117,8 @@ function styleGeom(nSkins = 10, nSchemes = 5, nTags = 0) {
 
 // the skin cards: every skin, and the custom case's card while it has not been made yet
 const styleSkins = () => listSkins().some(s => s.id === "custom") ? listSkins() : listSkins().concat([{ id: "custom", dir: null, name: "CUSTOM" }]);
-// the tag cards: every finish (OFF is in the TITLE TAG row); the cards are this much as tall as wide
-const TAG_CARD_H = .62, styleTags = () => TAGS.filter(([id]) => id !== "off" && tagFinish(id));
+// the tag cards: OFF, then every finish; the cards are this much as tall as wide
+const TAG_CARD_H = .62, styleTags = () => TAGS.filter(([id]) => id === "off" || tagFinish(id));
 function drawStyle(gr) {
     const skins = styleSkins(), ids = Object.keys(TOKENS.schemes), tags = styleTags(), g = styleGeom(skins.length, ids.length, tags.length);
     for (const [x, y] of [[dp(16), dp(16)], [W - dp(27), dp(16)], [dp(16), H - dp(27)], [W - dp(27), H - dp(27)]]) regCross(gr, x, y);
@@ -146,14 +146,14 @@ function drawStyle(gr) {
     y += Math.ceil(ids.length / g.cols) * (g.schemeH + g.gap) + dp(10);
     // TITLE TAG: each finish in the chosen shape and colours
     if (tags.length) {
-        label(gr, `${tr("TITLE TAG")}  ·  ${pad(tags.length, 2)}`, st(STY_ST.sec, C.fg), g.m, y);
+        label(gr, `${tr("TITLE TAG")}  ·  ${pad(tags.length - 1, 2)}`, st(STY_ST.sec, C.fg), g.m, y);
         y += dp(30);
         tags.forEach(([id, name], i) => drawTagCard(gr, id, name, g.m + (i % g.cols) * (g.cw + g.gap), y + Math.floor(i / g.cols) * (g.tagH + g.gap), g.cw, g.tagH));
         y += Math.ceil(tags.length / g.cols) * (g.tagH + g.gap) + dp(10);
     }
-    // DISPLAY: text size, Archive array scale, inspection size, Archive floor, halftone, wallpaper (the count is of those shown)
-    label(gr, `${tr("DISPLAY")}  ·  ${pad(scaleGroups().length + 1, 2)}`, st(STY_ST.sec, C.fg), g.m, y);
-    drawScaleRow(gr, g.m, y + dp(30), g.lx1);
+    // DISPLAY: the settings in groups (the count is of the rows)
+    label(gr, `${tr("DISPLAY")}  ·  ${pad(displayCount(), 2)}`, st(STY_ST.sec, C.fg), g.m, y);
+    drawDisplay(gr, g.m, y + dp(30), g.lx1);
     drawStylePreview(gr, g, skins);
 }
 
@@ -215,10 +215,17 @@ function drawSchemeCard(gr, id, i, x, y, w, h) {
 function drawTagCard(gr, id, name, x, y, w, h) {
     const ih = h - dp(40), inUse = id === STATE.tag, hov = STY.hover && STY.hover.kind === "tag" && STY.hover.id === id;
     gr.FillSolidRect(x, y, w, h, C.panel);
-    const tw = w - dp(18), th = tagHeight(tw, id);
-    gr.PushClip(x, y, w, ih);
-    drawTag(gr, x + dp(9), y + Math.round((ih - th) / 2), tw, tr("Over the Signal"), { track: "03", total: "12", arc: "0269" }, C.panel, id);
-    gr.PopClip();
+    const tw = w - dp(18), th = tagHeight(tw, id === "off" ? "plastic" : id);
+    if (id === "off") {
+        // no tag: its outline, struck through
+        const ty = y + Math.round((ih - th) / 2), c = C["text-muted"];
+        box(gr, x + dp(9), ty, tw, th, c);
+        gr.DrawLine(x + dp(9), ty + th, x + dp(9) + tw, ty, HAIR, c);
+    } else {
+        gr.PushClip(x, y, w, ih);
+        drawTag(gr, x + dp(9), y + Math.round((ih - th) / 2), tw, tr("Over the Signal"), { track: "03", total: "12", arc: "0269" }, C.panel, id);
+        gr.PopClip();
+    }
     gr.FillSolidRect(x, y + ih, w, HAIR, C["line-faint"]);
     const t = tr(name), ns = labelWidth(t, st(STY_ST.name, 0)) <= w - dp(18) ? STY_ST.name : STY_ST.nameS;
     label(gr, fitLabel(t, st(ns, C.fg, C.panel), w - dp(18)), st(ns, C.fg, C.panel), x + dp(10), y + ih + Math.round((dp(40) - labelHeight(ns)) / 2));
@@ -256,22 +263,226 @@ function drawIntroButton(gr, xr, y) {
     return x;
 }
 
-// TEXT [90% … 120%]   ARRAY [80% … 130%]   INSPECT [100% … 150%]   FLOOR [PLAIN | LAB DECK]
-// HALFTONE [OFF | BOTTOM | CORNER]   DOTS [FAINT | MEDIUM | STRONG]   FONT [GEIST MONO | OXANIUM | CHAKRA PETCH]
-// EMBLEM [RING | DELTA]   TITLE TAG [OFF | PLASTIC | …]   TAG SHAPE [TAB | …]   TAG COLOURS [SCHEME | CASE | CUSTOM] ■ ■ ■   TAG BODY [SOLID | TRANSLUCENT | TRANSPARENT]   TAG OPACITY [25% | 50% | 75%]
-// from x, wrapping to a second row before x1
+// DISPLAY: the settings that are not cards, in four groups whose rows line up (a label column, then the control):
+//   TEXT       SIZE [− 10.0 +] (typed, or stepped by 0.5; 10 is 100 %), FONT
+//   ARCHIVE    ARRAY, INSPECT, FLOOR (with REAL STYLE, the offer of its colour scheme under it)
+//   PAGE       WALLPAPER ›, HALFTONE, DOTS, EMBLEM
+//   TITLE TAG  TAG SHAPE, TAG COLOURS (the custom ones under it), TAG BODY, TAG OPACITY (the finish: the cards above)
+// The groups flow into as many columns as the width takes. A row that does not apply now (DOTS with the halftone off,
+// the tag's rows with no tag) keeps its place, dimmed.
 const pct = v => `${Math.round(v * 100)}%`;
-const scaleGroups = () => {
-    const scales = list => list.map(v => [v, pct(v)]);
-    return [["TEXT", scales(TEXT_SCALES), STATE.textScale, "sty-text"], ["ARRAY", scales(ARRAY_SCALES), STATE.arrayScale, "sty-array"],
-            ["INSPECT", scales(INSPECT_SCALES), STATE.inspectScale, "sty-inspect"], ["FLOOR", FLOORS, STATE.floor, "sty-floor"],
-            ["HALFTONE", HALFTONES, STATE.halftone, "sty-ht"], ...(STATE.halftone === "off" ? [] : [["DOTS", HALFTONE_LEVELS, STATE.halftoneLevel, "sty-htl"]]),
-            ["FONT", FONTS.filter(([id]) => FONT_FAMILIES[id].ok), STATE.font, "sty-font"], ["EMBLEM", EMBLEMS, STATE.emblem, "sty-emblem"],
-            ["TITLE TAG", TAGS, STATE.tag, "sty-tag"], ...(STATE.tag === "off" ? [] : [["TAG SHAPE", TAG_SHAPES, STATE.tagShape, "sty-tagshape"]]),
-            ...(tagRecolours() ? [["TAG COLOURS", TAG_COLOUR_SOURCES, STATE.tagColours, "sty-tagcol"]] : []),
-            ...(STATE.tag !== "off" && !TAG_SEE_KIND[STATE.tag] ? [["TAG BODY", TAG_BODIES, STATE.tagBody, "sty-tagbody"]] : []),
-            ...(tagSeesThrough() ? [["TAG OPACITY", TAG_OPACITIES, STATE.tagOpacity, "sty-tagop"]] : [])];
-};
+const DISP = { row: 30, head: 28, seg: 22, colGap: 40, maxGap: 72 };   // dp
+const hearthOffer = () => STATE.floor === "real" && SCHEME !== "hearth" && !!TOKENS.schemes.hearth;
+function displayGroups() {
+    const sc = list => list.map(v => [v, pct(v)]), tagOn = STATE.tag !== "off";
+    const row = (title, items, cur, id, off = false) => ({ title, items, cur, id, off });
+    return [
+        { title: "TEXT", rows: [{ title: "SIZE", kind: "size" }, row("FONT", FONTS.filter(([id]) => FONT_FAMILIES[id].ok), STATE.font, "sty-font")] },
+        { title: "ARCHIVE", rows: [row("ARRAY", sc(ARRAY_SCALES), STATE.arrayScale, "sty-array"), row("INSPECT", sc(INSPECT_SCALES), STATE.inspectScale, "sty-inspect"),
+                                   row("FLOOR", FLOORS, STATE.floor, "sty-floor"), ...(hearthOffer() ? [{ title: "", kind: "hearth" }] : [])] },
+        { title: "PAGE", rows: [{ title: "WALLPAPER", kind: "wallpaper" }, row("HALFTONE", HALFTONES, STATE.halftone, "sty-ht"),
+                                row("DOTS", HALFTONE_LEVELS, STATE.halftoneLevel, "sty-htl", STATE.halftone === "off"), row("EMBLEM", EMBLEMS, STATE.emblem, "sty-emblem")] },
+        { title: "TITLE TAG", rows: [row("TAG SHAPE", TAG_SHAPES, STATE.tagShape, "sty-tagshape", !tagOn), row("TAG COLOURS", TAG_COLOUR_SOURCES, STATE.tagColours, "sty-tagcol", !tagRecolours()),
+                                     ...(tagRecolours() && STATE.tagColours === "custom" ? [{ title: "", kind: "swatches" }] : []),
+                                     row("TAG BODY", TAG_BODIES, STATE.tagBody, "sty-tagbody", !tagOn || !!TAG_SEE_KIND[STATE.tag]),
+                                     row("TAG OPACITY", TAG_OPACITIES, STATE.tagOpacity, "sty-tagop", !tagSeesThrough())] },
+    ];
+}
+const displayCount = () => displayGroups().reduce((n, g) => n + g.rows.filter(r => r.title).length, 0);
+const wpButtonText = () => { const b = STATE.wallpaper || WP_START; return `${b.path ? wpName(b.path) : tr("NONE")}  ›`; };
+// a row's control width
+function displayRowW(r) {
+    const s = st(GRID_ST.count, 0);
+    if (r.kind === "size") return sizeCtl(null, 0, 0);
+    if (r.kind === "wallpaper") return Math.min(dp(240), labelWidth(wpButtonText(), s) + dp(24));
+    if (r.kind === "hearth") return dp(32) + labelWidth(tr("USE HEARTH, MADE FOR REAL STYLE"), s);
+    if (r.kind === "swatches") return drawTagSwatches(null, 0, 0);
+    return r.items.reduce((n, [, l]) => n + dp(18) + labelWidth(tr(l), s), 0);
+}
+// where each group goes: the most columns that fit between x and x1, the groups split into them in order, as evenly
+// as their heights allow; the columns spread over the width (up to DISP.maxGap apart)
+function displayLayout(x, x1) {
+    const G = displayGroups(), s = st(GRID_ST.count, 0), avail = x1 - x;
+    const lw = Math.max(...G.flatMap(g => g.rows.map(r => r.title ? labelWidth(tr(r.title), s) : 0))) + dp(16);
+    for (const g of G) { g.w = lw + Math.max(...g.rows.map(displayRowW)); g.h = dp(DISP.head) + g.rows.length * dp(DISP.row); }
+    // every way to cut the groups into n runs, in order
+    const cuts = (from, n) => n === 1 ? [[[from, G.length]]] : Array.from({ length: G.length - from - n + 1 }, (_, i) => from + i + 1)
+        .flatMap(end => cuts(end, n - 1).map(rest => [[from, end], ...rest]));
+    for (let n = Math.min(4, G.length); n >= 1; n--) {
+        let best = null;
+        for (const c of cuts(0, n)) {
+            const cols = c.map(([a, b]) => G.slice(a, b)), ws = cols.map(col => Math.max(...col.map(g => g.w)));
+            const sum = ws.reduce((a, b) => a + b, 0) + (n - 1) * dp(DISP.colGap);
+            if (sum > avail && n > 1) continue;
+            const h = Math.max(...cols.map(col => col.reduce((a, g) => a + g.h, 0) + (col.length - 1) * dp(12)));
+            if (!best || h < best.h) best = { cols, ws, h, sum };
+        }
+        if (!best) continue;
+        const gap = n > 1 ? Math.min(dp(DISP.maxGap), dp(DISP.colGap) + (avail - best.sum) / (n - 1)) : 0;
+        let cx = x;
+        best.cols.forEach((col, i) => {
+            let cy = 0;
+            for (const g of col) { g.x = Math.round(cx); g.y = cy; cy += g.h + dp(12); }
+            cx += best.ws[i] + gap;
+        });
+        return { groups: G, lw, h: best.h };
+    }
+}
+// gr null: only measures. Returns the height.
+function drawDisplay(gr, x, y, x1) {
+    const L = displayLayout(x, x1);
+    if (!gr) return L.h;
+    const s = st(GRID_ST.count, 0);
+    for (const g of L.groups) {
+        const gx = g.x, gy = y + g.y;
+        label(gr, tr(g.title), st(STY_ST.tiny, C.fg), gx, gy);
+        gr.FillSolidRect(gx, gy + dp(17), g.w, HAIR, C["line-faint"]);
+        g.rows.forEach((r, i) => {
+            const ry = gy + dp(DISP.head) + i * dp(DISP.row), cx = gx + L.lw, ty = ry + Math.round((dp(DISP.seg) - labelHeight(GRID_ST.count)) / 2);
+            if (r.title) label(gr, tr(r.title), st(GRID_ST.count, r.off ? mix(C["text-muted"], C.bg, .45) : C["text-muted"]), gx, ty);
+            if (r.kind === "size") sizeCtl(gr, cx, ry);
+            else if (r.kind === "wallpaper") wallpaperButton(gr, cx, ry, displayRowW(r));
+            else if (r.kind === "hearth") hearthButton(gr, cx, ry);
+            else if (r.kind === "swatches") drawTagSwatches(gr, cx, ry);
+            else segLeft(gr, cx, ry, r.items, r.cur, r.id, r.off);
+        });
+    }
+    return L.h;
+}
+// a segmented toggle from x (as segToggle, grid.js, but left-aligned and without its title); off: dimmed, not clickable
+function segLeft(gr, x, y, items, cur, id, off) {
+    const hh = dp(DISP.seg), s = st(GRID_ST.count, 0), ty = y + Math.round((hh - labelHeight(GRID_ST.count)) / 2), x0 = x;
+    const dim = mix(C["text-muted"], C.bg, .45);
+    for (const [v, l] of items) {
+        const t = tr(l), w = dp(18) + labelWidth(t, s), on = Array.isArray(cur) ? cur.includes(v) : cur === v;
+        if (on && !off) gr.FillSolidRect(x, y, w, hh, C.fg);
+        else if (on) box(gr, x, y, w, hh, dim);
+        label(gr, t, st(GRID_ST.count, off ? dim : on ? C.bg : C["text-muted"], on && !off ? C.fg : C.bg), x + dp(9), ty);
+        if (!off) hits.add(id, x, y, w, hh, v);
+        x += w;
+    }
+    box(gr, x0, y, x - x0, hh, C["line-faint"]);
+    return x - x0;
+}
+// WALLPAPER [NAME ›]: opens its editor on the right
+function wallpaperButton(gr, x, y, w) {
+    const on = STY.edit === "wallpaper", hov = STY.wpHover === "open", wh = dp(DISP.seg), t = wpButtonText();
+    const ws = st(GRID_ST.count, on ? C.bg : C.fg, on ? C.fg : C.bg);
+    if (on) gr.FillSolidRect(x, y, w, wh, C.fg);
+    box(gr, x, y, w, wh, hov || on ? C.accent : C["line-dim"]);
+    label(gr, fitLabel(t, ws, w - dp(24)), ws, x + dp(12), y + Math.round((wh - labelHeight(GRID_ST.count)) / 2));
+    hits.add("sty-wp-open", x, y, w, wh);
+}
+// REAL STYLE has its own colour scheme: offered under the floor until it is in use
+function hearthButton(gr, x, y) {
+    const t = tr("USE HEARTH, MADE FOR REAL STYLE"), s = st(GRID_ST.count, C.fg, C.bg), h = dp(DISP.seg), w = dp(32) + labelWidth(t, s);
+    box(gr, x, y, w, h, C.accent);
+    gr.FillSolidRect(x + dp(9), y + Math.round((h - dp(6)) / 2), dp(6), dp(6), C.accent);
+    label(gr, t, s, x + dp(22), y + Math.round((h - labelHeight(GRID_ST.count)) / 2));
+    hits.add("sty-hearth", x, y, w, h);
+}
+// SIZE [−][ 10.0 ][+]  PX · 100%: the text size as a number (10 at 100 %), typed into the field (lib/field.js) or
+// stepped by 0.5 with the buttons, the wheel or ↑ ↓. gr null: only measures (the width).
+const TEXT_SIZE_BASE = 10, TEXT_SIZE_MIN = 8, TEXT_SIZE_MAX = 15;
+const textSizeText = () => (Math.round(STATE.textScale * TEXT_SIZE_BASE * 10) / 10).toFixed(1);
+function sizeCtl(gr, x, y) {
+    const h = dp(DISP.seg), b = h, fw = dp(56), s = st(GRID_ST.count, 0), after = `PX  ·  ${pct(STATE.textScale)}`;
+    const w = b * 2 + fw + dp(12) + labelWidth(after, s);
+    if (!gr) return w;
+    const E = STY.sizeEdit, f = fontFor("0", 11, 500);
+    [[-1, x], [1, x + b + fw]].forEach(([d, bx]) => {
+        const hov = STY.sizeHover === d, c = hov ? C.accent : C.fg;
+        box(gr, bx, y, b, h, hov ? C.accent : C["line-dim"]);
+        gr.FillSolidRect(Math.round(bx + b / 2 - dp(4)), Math.round(y + h / 2 - HAIR / 2), dp(8), HAIR, c);
+        if (d > 0) gr.FillSolidRect(Math.round(bx + b / 2 - HAIR / 2), Math.round(y + h / 2 - dp(4)), HAIR, dp(8), c);
+        hits.add("sty-size", bx, y, b, h, d);
+    });
+    const fx = x + b, edit = !!E;
+    gr.FillSolidRect(fx, y, fw, h, edit ? C.panel : C.bg);
+    box(gr, fx, y, fw, h, edit ? C.accent : STY.sizeHover === 0 ? C.fg : C["line-dim"]);
+    if (edit) fieldDraw(gr, E, fx + dp(8), y, fw - dp(16), h, f, C.fg, true, STY.caret);
+    else gr.DrawText(textSizeText(), f, C.fg, fx, y, fw, h, DT_SINGLE | 0x00000001);   // DT_CENTER
+    hits.add("sty-size-field", fx, y, fw, h);
+    label(gr, after, st(GRID_ST.count, C["text-muted"]), x + b * 2 + fw + dp(12), y + Math.round((h - labelHeight(GRID_ST.count)) / 2));
+    return w;
+}
+// the text size from a number (a typed one: anything from 8 to 15, to a tenth)
+function setTextSize(v) {
+    if (!isFinite(v)) return;
+    v = clamp(Math.round(v * 10) / 10, TEXT_SIZE_MIN, TEXT_SIZE_MAX);
+    const sc = Math.round(v / TEXT_SIZE_BASE * 100) / 100;
+    if (sc !== STATE.textScale) send("text-scale", sc);
+}
+const stepTextSize = d => setTextSize(Math.round(STATE.textScale * TEXT_SIZE_BASE * 2) / 2 + d * .5);
+// the field: editing starts with a click on it (all selected), ends with Enter or a click elsewhere (applied) or Esc
+let SIZE_CARET = 0;
+function sizeEditStart() {
+    if (STY.sizeEdit) return;
+    STY.sizeEdit = makeField(textSizeText(), { accept: t => /^\d{0,2}([.,]\d?)?$/.test(t) });
+    STY.sizeEdit.anchor = 0;
+    STY.sizeDlg = window.DlgCode; window.DlgCode = STY.sizeDlg | 0x0080;   // DLGC_WANTCHARS
+    fieldFocus(true);
+    STY.caret = true;
+    window.ClearInterval(SIZE_CARET);
+    SIZE_CARET = window.SetInterval(() => { STY.caret = !STY.caret; const a = hits.get("sty-size-field"); if (a) window.RepaintRect(a.x, a.y, a.w, a.h); }, 530);
+    window.Repaint();
+}
+function sizeEditEnd(apply) {
+    const E = STY.sizeEdit;
+    if (!E) return;
+    STY.sizeEdit = null;
+    window.ClearInterval(SIZE_CARET);
+    window.DlgCode = STY.sizeDlg;
+    fieldFocus(false);
+    if (apply && E.text) setTextSize(parseFloat(E.text.replace(",", ".")));
+    window.Repaint();
+}
+// keys and characters while the field is being edited: true when taken (stage.js asks first)
+function styleKey(vk) {
+    const E = STY.sizeEdit;
+    if (!E) return false;
+    if (vk === 0x0D) sizeEditEnd(true);
+    else if (vk === 0x1B) sizeEditEnd(false);
+    else if (vk === 0x26 || vk === 0x28) {   // ↑ ↓: a step, kept in the field
+        const v = parseFloat(E.text.replace(",", "."));
+        const n = clamp(Math.round((isFinite(v) ? v : STATE.textScale * TEXT_SIZE_BASE) * 2) / 2 + (vk === 0x26 ? .5 : -.5), TEXT_SIZE_MIN, TEXT_SIZE_MAX);
+        fieldSetText(E, n.toFixed(1)); E.anchor = 0;
+        setTextSize(n);
+    }
+    else fieldKey(E, vk);
+    STY.caret = true;
+    window.Repaint();
+    return true;
+}
+function styleChar(code) {
+    if (!STY.sizeEdit) return false;
+    fieldChar(STY.sizeEdit, code);
+    STY.caret = true;
+    window.Repaint();
+    return true;
+}
+// the mouse on the field: placing the caret, selecting by dragging or double-clicking
+function styleDown(x, a, mask) {
+    if (!a || a.id !== "sty-size-field") return;
+    if (!STY.sizeEdit) { sizeEditStart(); return; }   // a first click selects it all
+    fieldDown(STY.sizeEdit, x, !!(mask & 4));
+    window.Repaint();
+}
+function styleDrag(x, mask) {
+    const E = STY.sizeEdit;
+    if (!E || !E.drag) return false;
+    if (mask & 1) { fieldDrag(E, x); window.Repaint(); return true; }
+    fieldUp(E);
+    return false;
+}
+function styleDblClick(x, a) { if (a && a.id === "sty-size-field" && STY.sizeEdit) { fieldDblClick(STY.sizeEdit, x); window.Repaint(); } }
+// the wheel over SIZE steps it
+function styleWheel(step) {
+    if (STY.sizeHover === undefined || STY.sizeHover === null) return false;
+    stepTextSize(step > 0 ? 1 : -1);
+    if (STY.sizeEdit) { fieldSetText(STY.sizeEdit, (clamp(Math.round(STATE.textScale * TEXT_SIZE_BASE * 2) / 2 + (step > 0 ? .5 : -.5), TEXT_SIZE_MIN, TEXT_SIZE_MAX)).toFixed(1)); STY.sizeEdit.anchor = 0; }
+    return true;
+}
 // the tag's colours can be chosen (its finish is not one of the glass ones, which keep theirs)
 const tagRecolours = () => STATE.tag !== "off" && !["tide", "aurora"].includes(STATE.tag);
 // the custom tag colours: TOP ■ BODY ■ BOTTOM ■, each opens the colour picker. Returns the width.
@@ -299,45 +510,6 @@ function wrapGroups(groups, x, y, x1) {
     }
     return { at, y, xl };
 }
-// gr null: only measures (the y of the last row)
-function drawScaleRow(gr, x, y, x1) {
-    const wg = wrapGroups(scaleGroups(), x, y, x1);
-    if (gr) for (const [xr, gy, [title, items, cur, id]] of wg.at) segToggle(gr, xr, gy, title, items, cur, id);
-    let xl = wg.xl;
-    y = wg.y;
-    // the custom tag colours, after the TAG COLOURS toggle
-    if (tagRecolours() && STATE.tagColours === "custom") {
-        const tw = drawTagSwatches(null, 0, 0);
-        if (xl > x && xl + tw > x1) { xl = x; y += dp(34); }
-        if (gr) drawTagSwatches(gr, xl, y);
-        xl += tw + dp(28);
-    }
-    // WALLPAPER · IMG.JPG ›: opens its editor on the right
-    const b = STATE.wallpaper || WP_START, on = STY.edit === "wallpaper", hov = STY.wpHover === "open";
-    const wt = `${tr("WALLPAPER")}  ·  ${b.path ? wpName(b.path) : tr("NONE")}  ›`;
-    const ws = st(GRID_ST.count, on ? C.bg : C.fg, on ? C.fg : C.bg), wh = dp(22), ww = Math.min(x1 - x, labelWidth(wt, ws) + dp(24));
-    if (xl > x && xl + ww > x1) { xl = x; y += dp(34); }
-    if (gr) {
-        if (on) gr.FillSolidRect(xl, y, ww, wh, C.fg);
-        box(gr, xl, y, ww, wh, hov || on ? C.accent : C["line-dim"]);
-        label(gr, fitLabel(wt, ws, ww - dp(24)), ws, xl + dp(12), y + Math.round((wh - labelHeight(GRID_ST.count)) / 2));
-        hits.add("sty-wp-open", xl, y, ww, wh);
-    }
-    xl += ww + dp(28);
-    // REAL STYLE has its own colour scheme: offered next to the floor until it is in use
-    if (STATE.floor === "real" && SCHEME !== "hearth" && TOKENS.schemes.hearth) {
-        const t = tr("USE HEARTH, MADE FOR REAL STYLE"), s = st(GRID_ST.count, C.fg, C.bg), h = dp(22), w = dp(26) + labelWidth(t, s) + dp(10);
-        if (xl + w > x1) { xl = x; y += dp(34); }
-        if (!gr) return y;
-        gr.FillSolidRect(xl, y, w, h, C.bg);
-        box(gr, xl, y, w, h, C.accent);
-        gr.FillSolidRect(xl + dp(9), y + Math.round((h - dp(6)) / 2), dp(6), dp(6), C.accent);
-        label(gr, t, s, xl + dp(22), y + Math.round((h - labelHeight(GRID_ST.count)) / 2));
-        hits.add("sty-hearth", xl, y, w, h);
-    }
-    return y;
-}
-
 // The wallpaper's editor (lib/wallpaper.js): the picture as the stage shows it (look and veil applied), CHOOSE / REMOVE,
 // the pictures that come with the theme, then where it shows, its look and its veil.
 function drawWallpaperEditor(gr, x0, y, w, y1) {
@@ -607,13 +779,19 @@ function styleMouseMove(a) {
     if (wh !== (STY.wpHover || null)) { STY.wpHover = wh; window.Repaint(); }
     const cp = a && a.id === "sty-cpick" ? a.data : null;
     if (cp !== (STY.cpick || null)) { STY.cpick = cp; window.Repaint(); }
-    const h = a && (a.id === "sty-skin" || a.id === "sty-scheme" || a.id === "sty-tagcard") ? { kind: { "sty-skin": "skin", "sty-scheme": "scheme", "sty-tagcard": "tag" }[a.id], id: a.data }
+    // SIZE: −1 / +1 its buttons, 0 its field (the wheel steps it while the mouse is over any of them)
+    const sz = a && a.id === "sty-size" ? a.data : a && a.id === "sty-size-field" ? 0 : null;
+    if (sz !== (STY.sizeHover === undefined ? null : STY.sizeHover)) { STY.sizeHover = sz; window.Repaint(); }
+    const h = a && (a.id === "sty-skin" || a.id === "sty-scheme" || a.id === "sty-tagcard" && a.data !== "off") ? { kind: { "sty-skin": "skin", "sty-scheme": "scheme", "sty-tagcard": "tag" }[a.id], id: a.data }
         : a && a.id === "sty-intro" ? { kind: "intro", id: "" } : null;
     const o = STY.hover;
     if ((h && (!o || o.kind !== h.kind || o.id !== h.id)) || (!h && o)) { STY.hover = h; window.Repaint(); }
 }
 function styleClick(a) {
+    // a click anywhere but in the size field ends its editing (the number is applied)
+    if (STY.sizeEdit && !(a && a.id === "sty-size-field")) sizeEditEnd(true);
     if (!a) return;
+    if (a.id === "sty-size") { stepTextSize(a.data); return; }
     if (a.id === "sty-skin" && a.data === "custom") {
         STY.edit = "case";
         if (!customCaseMade()) makeCase();

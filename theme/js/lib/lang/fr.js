@@ -281,4 +281,6 @@ I18N["fr"] = {
     "CHOIR": "CHŒUR",
     "CHARACTER": "PERSONNAGE",
     "IMG · ALBUM COVER": "IMG · POCHETTE",
+    // 1.10: the search field's menu, 05 STYLE's text size, the artist's own albums and tracks
+    "SIZE": "TAILLE", "LIBRARY": "BIBLIOTHÈQUE", "■ IN YOUR LIBRARY": "■ DANS LA BIBLIOTHÈQUE", "+{0} MORE": "+{0} DE PLUS", "NOTHING BY {0} IN THE LIBRARY": "RIEN DE {0} DANS LA BIBLIOTHÈQUE", "Undo": "Annuler", "Cut": "Couper", "Copy": "Copier", "Paste": "Coller", "Delete": "Supprimer", "Select all": "Tout sélectionner",
 };

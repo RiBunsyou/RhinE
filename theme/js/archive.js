@@ -35,7 +35,7 @@ const AR_ST = {
 const AS = .54;                    // array sprite px → dp (the renders are 2× for sharpness)
 const PITCH = 1.0, ROWP = 4.7;     // case spacing along a row and between rows, in case.json axis units
 const CLOSE = [.45, -.62, .64];    // "towards the viewer", for back-to-front sorting
-const INFO_W = 456, ARCHIVE_PLAYLIST = "Archive · Album";
+const ARCHIVE_PLAYLIST = "Archive · Album";
 const LIFT_OUT = 2.2;              // how far the inspected case rises out of its row, in case.json axis units
 const INSP_LIFT = .32, INSP_TURN = .72, INSPECT_ZOOM = 2.05;   // stage durations (s); size at the end of the turn
 
@@ -127,8 +127,13 @@ LIB_LISTENERS.push(kind => {
     if (kind === "catalog") placeSelection(AR.selAlbum);
     if (!ARCHIVE_ON) return;
     if (kind === "catalog") { requestVisibleThumbs(); clock.wake(); window.Repaint(); return; }
-    // covers arrive in bursts (a screen of the grid at once): one repaint of the array area for all of them
-    if (!coverPaint) coverPaint = window.SetTimeout(() => { coverPaint = 0; window.RepaintRect(0, 0, arrayW(), H); }, 16);
+    // covers arrive in bursts (a screen of the grid at once): one repaint of the array area for all of them; with the
+    // artist's albums shown (the ARTIST page, the artist file: artist.js), those cached layers are drawn again too
+    if (!coverPaint) coverPaint = window.SetTimeout(() => {
+        coverPaint = 0;
+        if ((AR.page === "artist" || AF.open) && artistCoversNew()) { AR.dirtyInfo = true; AF.dirty = true; window.Repaint(); }
+        else window.RepaintRect(0, 0, arrayW(), H);
+    }, 16);
 });
 // rows rebuilt (catalog, grouping, layout): select `key` again where it now is, else stay near the same row
 function placeSelection(key) {
@@ -370,6 +375,7 @@ function archiveUpdate(dt) {
     const G = arRows();
     if (!G.length) return false;
     let more = stepInspection(dt);
+    more = stepSwap(dt) || more;
     more = pickUpdate(dt) || more;
     // Keep a full viewport near the end of the library, plus a row at each edge for animation.
     const start = arrayStart(), count = arrayGeom().count, F = frontRows();
@@ -448,6 +454,57 @@ function stepInspection(dt) {
     AR.insp = dir > 0 ? Math.min(next, target) : Math.max(next, target);
     return true;
 }
+// The inspection follows the playing track: when another album (or, showing TRACKS, another track) starts playing while
+// the case inspected is the one that was playing, that case slides out to the left, the selection moves to the playing
+// one (on its shelf, behind the veil) and its case slides in from the right; the inspection stays open. A case
+// inspected that was not playing is left alone.
+const SWAP = { phase: "", t: 0, key: "" };
+let NP_H = fb.GetNowPlaying();   // the track that was playing (its item is worked out as the shelves list them now)
+const npItemKey = h => !h ? "" : LIB.unit === "tracks" ? `t|${h.Path.toLowerCase()}|${h.SubSong}` : albumKey(h);
+function inspectFollow() {
+    const h = fb.GetNowPlaying(), was = npItemKey(NP_H), now = npItemKey(h);
+    NP_H = h;
+    const a = curAlbum();
+    if (!now || now === was || !AR.inspOn || AF.open || AR.layout === "grid" || !a || a.key !== was || PICK.steps) return;
+    if (!arRows().some(g => g.albums.some(x => x.key === now))) return;   // not on the shelves (a search hides it)
+    if (REDUCE_MOTION) { selectKey(now); return; }
+    Object.assign(SWAP, { phase: "out", t: 0, key: now });
+    clock.wake();
+}
+function stepSwap(dt) {
+    if (!SWAP.phase) return false;
+    SWAP.t += dt / (SWAP.phase === "out" ? .2 : .3);
+    if (SWAP.t < 1) return true;
+    if (SWAP.phase === "out") { selectKey(SWAP.key); Object.assign(SWAP, { phase: "in", t: 0 }); return true; }
+    Object.assign(SWAP, { phase: "", t: 0, key: "" });
+    window.Repaint();
+    return false;
+}
+// the inspected case's shift (px) and opacity (0 - 1) during a swap
+function swapState() {
+    if (!SWAP.phase) return { dx: 0, a: 1 };
+    const e = easeInOut(clamp(SWAP.t, 0, 1)), d = dp(90);
+    return SWAP.phase === "out" ? { dx: -d * e, a: 1 - e } : { dx: d * (1 - e), a: e };
+}
+// selects the item with this key wherever it is on the shelves (the shelves follow; the inspection is not left)
+function selectKey(key) {
+    const R = arRows();
+    for (let gi = 0; gi < R.length; gi++) {
+        const i = R[gi].albums.findIndex(x => x.key === key);
+        if (i < 0) continue;
+        AR.group = gi;
+        AR.ticks.clear();
+        const r = rowState(gi);
+        r.sel = i;
+        r.scroll.x = r.scroll.to = scrollTarget(i, R[gi]);
+        selectionChanged();
+        AR.dirtyInfo = true;
+        clock.wake();
+        return true;
+    }
+    return false;
+}
+
 // hover: the case under the mouse, which lifts its neighbours a little (-1: none, as for the cases' resting places)
 function caseTargets(i, r, active, row, hover = -1) {
     const d = slotOf(row, i) - slotOf(row, r.sel), bell = Math.exp(-d * d / 4.5) - .32 * Math.exp(-d * d / 18), hd = i - hover;
@@ -462,7 +519,9 @@ function caseTargets(i, r, active, row, hover = -1) {
 }
 
 // ------------------------------------------------------------------------------------------------------ layout
-const infoX = () => W - dp(24 + INFO_W);
+// the album file's width (lib/bus.js side "file"; w: a width to try), narrower when the array would keep less than 444 dp
+const fileW = (w = side("file")) => Math.round(Math.min(dp(w), Math.max(dp(SIDES_RANGE.file[0]), W - dp(24 + 444))));
+const infoX = () => W - dp(24) - fileW();
 const arrayW = () => Math.max(dp(300), infoX() - dp(24));
 // Preserve case size on ultrawide views; fit additional shelves across the available width.
 let ARRAY_GEOM = null;
@@ -684,6 +743,8 @@ function requestVisibleThumbs() {
         idx.sort((p, q) => Math.abs(p - r.sel) - Math.abs(q - r.sel));
         idx.forEach(i => list.push(albums[i]));
     }
+    // the albums of the artist the album file or the artist file shows, first (artist.js)
+    if (AR.page === "artist" || AF.open) { const A = curArtist(); if (A && A.lib) list.unshift(...artistAlbums(A.lib).slice(0, 24)); }
     setThumbBudget(Math.max(160, list.length));
     requestThumbs(list, Math.max(48, list.length));
 }
@@ -1113,28 +1174,28 @@ function inspectK(k0) {
 // square-on through the evenly spaced pre-rendered frames; between two frames the next one fades in over the current
 // one and the cover and label quads are interpolated, so the turn has no visible steps
 function drawInspection(gr, e) {
-    const frames = ARIMG.inspect, a = curAlbum(), aw = arrayW();
+    const frames = ARIMG.inspect, a = curAlbum(), aw = arrayW(), S = swapState(), sa = Math.round(255 * S.a);
     gr.FillSolidRect(0, 0, aw, H, withAlpha(C.bg, .82 * e));
     if (!frames || !a) return;
     const n = frames.length, x = e * (n - 1), i0 = Math.min(n - 2, Math.floor(x)), f = clamp(x - i0, 0, 1);
     const M0 = CASE_META.inspect[i0], M1 = CASE_META.inspect[i0 + 1], full = CASE_META.inspect_res;
     const k0 = arK() * CASE_META.array_ppu / CASE_META.inspect_ppu, k = lerp(k0, inspectK(k0), e);
     const cx = lerp(AR.from[0], aw * .49, e), cy = lerp(AR.from[1], H * .5, e);
-    const ox = cx - M0.center[0] * k, oy = cy - M0.center[1] * k;
+    const ox = cx - M0.center[0] * k + S.dx, oy = cy - M0.center[1] * k;
     const mixQ = (A, B) => A.map((p, j) => [lerp(p[0], B[j][0], f), lerp(p[1], B[j][1], f)]);
     const coverQ = mixQ(M0.cover, M1.cover), labelQ = mixQ(M0.label, M1.label);
     const big = cover(albumFirst(a), () => window.Repaint()), t = thumbOf(a);
     const cov = big && big.img ? big.img : t ? t.img : null;
-    if (cov) quadImage(gr, cov, coverQ, ox, oy, k);
-    else gr.FillPolygon(C.well, 0, quadPts(coverQ, ox, oy, k));
+    if (cov) quadImage(gr, cov, coverQ, ox, oy, k, sa);
+    else gr.FillPolygon(withAlpha(C.well, S.a), 0, quadPts(coverQ, ox, oy, k));
     const frame = (img, M, alpha) => {
         const c = M.crop || [0, 0, full[0], full[1]];
         gr.DrawImage(img, ox + c[0] * k, oy + c[1] * k, c[2] * k, c[3] * k, 0, 0, img.Width, img.Height, 0, alpha);
     };
-    frame(frames[i0], M0, 255);
-    if (f > .01) frame(frames[i0 + 1], M1, Math.round(255 * f));
-    drawSpineLabel(gr, labelQ, ox, oy, k, a.no);
-    if (e > .85) {
+    frame(frames[i0], M0, sa);
+    if (f > .01) frame(frames[i0 + 1], M1, Math.round(sa * f));
+    drawSpineLabel(gr, labelQ, ox, oy, k, a.no, sa);
+    if (e > .85 && !SWAP.phase) {   // (its marks, title and button wait until a swap is over)
         const q = coverQ.map(([px, py]) => [ox + px * k, oy + py * k]), al = (e - .85) / .15;
         for (const [px, py] of q) gr.FillSolidRect(Math.round(px - dp(3)), Math.round(py - dp(3)), dp(6), dp(6), withAlpha(C.accent, al));
         if (al > .5) {
@@ -1165,7 +1226,7 @@ function drawInfo(gr, w, h) {
     INFO_HITS.length = 0;
     const a = curAlbum();
     if (!a) return;
-    const x = dp(20), iw = dp(INFO_W), gname = groupName(a.grp || "");
+    const x = dp(20), iw = fileW(), gname = groupName(a.grp || "");
     // the halftone (05 STYLE), under the ghost group name (both pages)
     halftoneDecor(gr, w, h, dp(210));
     // ghost group name, low behind the actions
@@ -1549,7 +1610,7 @@ function archiveClick(x, y, a) {
 // (or a sideways wheel, archiveWheelH) it switches shelves (the grid: sections), as ← → do.
 function archiveWheel(step) {
     pickStop();
-    if (AF.open && AR.mouseX < arrayW()) return;
+    if (AF.open && AR.mouseX < arrayW()) { artistWheel(step); return; }   // the artist file's track list (artist.js)
     if (utils.IsKeyPressed(0x10)) { archiveShelf(step > 0 ? 1 : -1); return; }
     if (AR.page === "tracks" && AR.mouseX >= infoX() - dp(20) && curAlbum()) {
         const s = clamp(AR.listScroll - step * 3, 0, AR.listMax);

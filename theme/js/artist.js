@@ -22,7 +22,7 @@ const ART_ST = {
     node: { size: 13, weight: 600, track: .03 },
 };
 const ART_ROOT = THEME_ROOT + "assets\\render\\artist\\";
-const AF = { open: false, tab: "file", layer: null, dirty: true, hover: null, rel: -1, img: {} };
+const AF = { open: false, tab: "file", layer: null, dirty: true, hover: null, rel: -1, libHover: -1, img: {} };
 ART.listeners.push(rec => {
     const a = curAlbum();
     if (!a || artKey(a.artist || "") !== artKey(rec.name)) return;
@@ -81,20 +81,75 @@ function inLibrary(name) {
     return null;
 }
 
-// every track of the artist in the library, album by album (newest first), in the Archive's playlist
-function playArtist(lib) {
+// the artist's albums in the library, newest first (then by title)
+const artistAlbums = lib => lib ? [...lib.albums].sort((p, q) => String(q.year || "").localeCompare(String(p.year || "")) || strCmp(lcs(p.title), lcs(q.title))) : [];
+// their tracks in that order, each { h, title, len, album } (worked out once per artist and library)
+const ART_TRACKS = { key: "", rows: [], scroll: 0 }, TF_ART_ROW = fb.TitleFormat("%title%\t%length%");
+function artistTracks(lib) {
+    const key = lib ? `${lib.name}|${LIB.gen}` : "";
+    if (ART_TRACKS.key === key) return ART_TRACKS.rows;
+    ART_TRACKS.key = key; ART_TRACKS.rows = []; ART_TRACKS.scroll = 0;
+    for (const album of artistAlbums(lib)) {
+        const h = albumHandles(album);
+        if (!h) continue;
+        for (let i = 0; i < h.Count; i++) { const [title, len] = TF_ART_ROW.EvalWithMetadb(h[i]).split("\t"); ART_TRACKS.rows.push({ h: h[i], title, len, album }); }
+    }
+    return ART_TRACKS.rows;
+}
+// every track of the artist in the library, album by album (newest first), in the Archive's playlist; from: the track
+// to start with (else the first)
+function playArtist(lib, from = null) {
     if (!lib || !libHandles) return;
     const list = fb.CreateHandleList();
-    for (const al of [...lib.albums].sort((p, q) => String(q.year || "").localeCompare(String(p.year || "")))) {
+    for (const al of artistAlbums(lib)) {
         const h = albumHandles(al);
-        if (h) list.AddRange(AR.skipInst ? dropInstrumentals(h) : h);
+        if (h) list.AddRange(AR.skipInst ? dropInstrumentals(h, from) : h);
     }
     if (!list.Count) return;
     const pl = archivePlaylist();
     plman.ClearPlaylist(pl);
     plman.InsertPlaylistItems(pl, 0, list);
+    let at = 0;
+    if (from) for (let k = 0; k < list.Count; k++) if (sameTrack(list[k], from)) { at = k; break; }
+    plman.ActivePlaylist = pl;
+    plman.ExecutePlaylistDefaultAction(pl, at);
+}
+// one of the artist's albums, from its first track
+function playAlbumOf(al) {
+    const pl = loadAlbum(al);
+    if (pl < 0) return;
     plman.ActivePlaylist = pl;
     plman.ExecutePlaylistDefaultAction(pl, 0);
+    AR.tracks.key = "";
+}
+// the covers of the artist's albums: asked for with the shelves' (requestVisibleThumbs) while some are not known yet
+// (at most once a second: the page is drawn again as covers arrive)
+let ART_THUMBS_T = 0, ART_SHOWN = null;   // the artist whose covers were drawn last, and how many of them were known
+const coversKnown = lib => lib.albums.filter(al => THUMBS.get(coverKey(al)) !== undefined).length;
+// a cover of theirs has arrived since: the page and the file are drawn again
+const artistCoversNew = () => !!ART_SHOWN && coversKnown(ART_SHOWN.lib) !== ART_SHOWN.n;
+function artistThumbs(lib) {
+    if (lib) ART_SHOWN = { lib, n: coversKnown(lib) };
+    if (!lib || Date.now() - ART_THUMBS_T < 1000 || !lib.albums.some(al => THUMBS.get(coverKey(al)) === undefined)) return;
+    ART_THUMBS_T = Date.now();
+    requestVisibleThumbs();
+}
+// a cover (or, while it loads or when there is none, a plate with the album's initial) at x, y, s × s
+function drawAlbumTile(gr, al, x, y, s, hov, playing) {
+    const th = thumbOf(al);
+    if (th && th.img) gr.DrawImage(th.img, x, y, s, s, 0, 0, th.img.Width, th.img.Height);
+    else {
+        gr.FillSolidRect(x, y, s, s, C.panel);
+        const t = [...String(al.title || "?")][0].toUpperCase();
+        gr.DrawText(t, fontFor(t, Math.round(s / SCALE * .3), 700), C["text-muted"], x, y, s, s, DT_CENTER_SINGLE);
+    }
+    if (playing) { gr.FillSolidRect(x, y + s - dp(4), s, dp(4), C.accent); }
+    box(gr, x, y, s, s, hov ? C.accent : withAlpha(C.fg, .15), hov ? Math.max(HAIR, dp(1.5)) : HAIR);
+    if (hov) {   // ▶ on the cover under the mouse
+        const r = Math.round(s * .16);
+        gr.FillEllipse(x + s / 2 - r, y + s / 2 - r, 2 * r, 2 * r, withAlpha(C.bg, .85));
+        icon(gr, "play", x + s / 2 + dp(1), y + s / 2, Math.max(6, Math.round(r / SCALE * .8)), C.fg);
+    }
 }
 
 // a short genre code for the badge: J-POP → JPOP, alternative rock → ALT
@@ -247,11 +302,13 @@ function drawInfoArtist(gr, a, x, y, iw, w, h) {
         const cx = x + dp(8) + (i % 2) * colW, cy = y + Math.floor(i / 2) * dp(20);
         label(gr, k, st(ART_ST.key, C["text-muted"]), cx, cy + dp(2));
         gr.DrawText(v, fontFor(v, 11, 400), kind === "acc" ? C.accent : C.fg, cx + dp(72), cy - dp(2), colW - dp(84), dp(18), DT_SINGLE | DT_ELLIPSIS);
+        if (kind === "acc" && lib) INFO_HITS.push(["art-lib", cx, cy - dp(2), colW - dp(12), dp(20)]);   // IN LIB: the full list
     });
     y += dp(60) + dp(16);
-    // the rest of the page: biography, genres, related artists, buttons (related rows give way first when tight)
-    const by = h - dp(22) - dp(20) - dp(40), nRel = Math.min(6, ((rec.related) || []).length);
-    const fixed = dp(18) + dp(26) + dp(32) + (nRel ? dp(24) : 0) + dp(18);
+    // the rest of the page: biography, genres, the artist's albums, related artists, buttons (related rows give way
+    // first when tight)
+    const by = h - dp(22) - dp(20) - dp(40), nRel = Math.min(6, ((rec.related) || []).length), strip = lib ? libStripH() : 0;
+    const fixed = dp(18) + dp(26) + dp(32) + (nRel ? dp(24) : 0) + dp(18) + strip;
     const room = by - y - fixed, rel = clamp(Math.floor((room - dp(19) * 3) / dp(23)), 0, nRel);
     const bioLines = clamp(Math.floor((room - rel * dp(23)) / dp(19)), 2, 14);
     label(gr, tr("■ BIOGRAPHY"), st(ART_ST.sect, C.fg), x, y);
@@ -260,6 +317,7 @@ function drawInfoArtist(gr, a, x, y, iw, w, h) {
     drawBioSource(gr, rec, x, y, iw, INFO_HITS);
     y += dp(26);
     if (rec.genres && rec.genres.length) { drawGenreChips(gr, rec, x, y, iw, C.bg); y += dp(32); }
+    if (lib) y += drawLibStrip(gr, lib, x, y, iw);
     if (rel) {
         label(gr, tr("■ RELATED ARTISTS"), st(ART_ST.sect, C.fg), x, y);
         const n = rec.related.length, own = rec.related.filter(r => inLibrary(r.name)).length;
@@ -268,6 +326,33 @@ function drawInfoArtist(gr, a, x, y, iw, w, h) {
         drawRelated(gr, rec, x, y, iw, rel, INFO_HITS, AF.rel);
     }
     drawArtistButtons(gr, x, by, lib, true);
+}
+
+// ■ IN YOUR LIBRARY: the artist's albums as covers in a row, the playing one marked; a click plays one. More than fit:
+// the last tile says how many more and opens the artist file's LIBRARY.
+const libStripH = () => dp(20) + dp(64) + dp(20) + dp(12);
+function drawLibStrip(gr, lib, x, y, iw) {
+    const albums = artistAlbums(lib), s = dp(64), gap = dp(10), fit = Math.max(1, Math.floor((iw + gap) / (s + gap)));
+    const more = albums.length > fit, shown = albums.slice(0, more ? fit - 1 : fit), np = fb.GetNowPlaying();
+    artistThumbs(lib);
+    label(gr, tr("■ IN YOUR LIBRARY"), st(ART_ST.sect, C.fg), x, y);
+    label(gr, tr("{0} ALB · {1} TRK", lib.albums.length, lib.tracks), st(ART_ST.key, C.accent), x + iw, y, 2);
+    const ty = y + dp(20);
+    shown.forEach((al, i) => {
+        const tx = x + i * (s + gap), hov = AF.libHover === i;
+        drawAlbumTile(gr, al, tx, ty, s, hov, itemPlaying(al, np));
+        label(gr, fitLabel(al.title || tr("UNTITLED"), st(ART_ST.key, 0), s), st(ART_ST.key, hov ? C.fg : C["text-muted"]), tx, ty + s + dp(5));
+        INFO_HITS.push(["art-alb", tx, ty, s, s + dp(18), albums.indexOf(al)]);
+    });
+    if (more) {
+        const tx = x + shown.length * (s + gap), hov = AF.libHover === -2;
+        gr.FillSolidRect(tx, ty, s, s, hov ? C.fg : C.panel);
+        gr.DrawText(`+${albums.length - shown.length}`, font(16, 600), hov ? C.bg : C.fg, tx, ty, s, s, DT_CENTER_SINGLE);
+        box(gr, tx, ty, s, s, hov ? C.accent : withAlpha(C.fg, .15));
+        label(gr, tr("ALL"), st(ART_ST.key, C["text-muted"]), tx, ty + s + dp(5));
+        INFO_HITS.push(["art-lib", tx, ty, s, s + dp(18)]);
+    }
+    return libStripH();
 }
 
 // ▶ PLAY ARTIST · OPEN FILE ↗ (I)
@@ -299,7 +384,8 @@ function artistFileOpen(on = !AF.open) {
     if (on) AR.inspOn = false;
     window.Repaint();
 }
-function artistTab(t) { AF.tab = t || (AF.tab === "map" ? "file" : "map"); AF.dirty = true; window.Repaint(); }
+const ART_TABS = ["file", "map", "lib"];
+function artistTab(t) { AF.tab = t || ART_TABS[(ART_TABS.indexOf(AF.tab) + 1) % ART_TABS.length]; AF.dirty = true; window.Repaint(); }
 
 // the archive room: cream cases lit from below (rendered; its own picture for dark schemes), cover-fitted
 function artBackdrop(gr, w, h) {
@@ -380,7 +466,7 @@ function drawArtistLayer(gr, w, h) {
     box(gr, cx0, cy0, cw, ch, withAlpha(C.fg, .18));
     // FILE | MAP
     let tx = cx0 + cw - dp(16);
-    for (const [k, t] of [["map", tr("MAP")], ["file", tr("FILE")]]) {
+    for (const [k, t] of [["lib", tr("LIBRARY")], ["map", tr("MAP")], ["file", tr("FILE")]]) {
         const on = AF.tab === k, tw = labelWidth(t, st(ART_ST.tag, 0)) + dp(16);
         tx -= tw;
         gr.FillSolidRect(tx, cy0 + dp(14), tw, dp(20), on ? C.fg : withAlpha(C.bg, .7));
@@ -390,6 +476,7 @@ function drawArtistLayer(gr, w, h) {
         tx -= dp(4);
     }
     if (AF.tab === "map") drawArtistMap(gr, rec, cx0, cy0, cw, ch, A.album);
+    else if (AF.tab === "lib") drawArtistLibrary(gr, lib, name, cx0, cy0, cw, ch);
     else drawArtistCard(gr, rec, lib, name, no, cx0, cy0, cw, ch, A.album);
     // FILE NUMBER: ART-0412, the long rule, and the biography beside the card
     const fs = st(ART_ST.fileno, C.fg, withAlpha(C.bg, .01)), ft = `${tr("FILE NUMBER:")} ART-${no}`, fw = labelWidth(ft, fs);
@@ -481,12 +568,76 @@ function drawArtistCard(gr, rec, lib, name, no, x0, y0, cw, ch, album) {
         const fx = x + dp(16) + (i % 2) * colW, fy = y + dp(8) + Math.floor(i / 2) * dp(21);
         label(gr, k, st(ART_ST.key, C["text-muted"]), fx, fy + dp(2));
         gr.DrawText(v, fontFor(v, 10.5, 400), kind === "acc" ? C.accent : C.fg, fx + dp(62), fy - dp(2), colW - dp(70), dp(18), DT_SINGLE | DT_ELLIPSIS);
+        if (kind === "acc" && lib) AF_HITS.push(["art-tab", fx, fy - dp(2), colW - dp(8), dp(20), "lib"]);   // IN LIB: the LIBRARY tab
     });
     y += rowsH + dp(16);
     drawGenreChips(gr, rec, x + dp(8), y, iw - dp(8), C["panel-hi"]);
     // the ghost INFO, low on the right of the card
     const gf = font(118, 700), gt = "INFO", gw = gr.CalcTextWidth(gt, gf);
     if (y + dp(40) < y0 + ch - dp(140)) gr.DrawStrokedText(gt, gf, withAlpha(C.fg, .12), HAIR, 0, x0 + cw - gw * 1.7 - dp(24), y0 + ch - dp(150), gw * 1.7, dp(150));
+}
+
+// LIBRARY: the artist's albums in the library as covers on the left (a click plays the album), all their tracks on the
+// right (a click plays the artist from that track; the wheel scrolls them), the playing ones marked; ▶ PLAY ARTIST
+function drawArtistLibrary(gr, lib, name, x0, y0, cw, ch) {
+    const x = x0 + dp(30), w = cw - dp(60), np = fb.GetNowPlaying(), bg = C["panel-hi"];
+    let y = y0 + dp(18);
+    label(gr, tr("■ IN YOUR LIBRARY"), st(ART_ST.sect, C.fg, bg), x, y + dp(4));
+    if (!lib) { label(gr, tr("NOTHING BY {0} IN THE LIBRARY", name.toUpperCase()), st(ART_ST.key, C["text-muted"], bg), x, y + dp(40)); return; }
+    artistThumbs(lib);
+    const albums = artistAlbums(lib), rows = artistTracks(lib);
+    label(gr, tr("{0} ALB · {1} TRK", lib.albums.length, lib.tracks), st(ART_ST.key, C.accent, bg), x + dp(150), y + dp(5));
+    y += dp(30);
+    gr.FillSolidRect(x, y, w, HEAVY, C.fg);
+    y += HEAVY + dp(16);
+    const bottom = y0 + ch - dp(64);
+    // albums: up to as many as the left part holds
+    const lw = Math.round(w * .5), s = dp(104), gap = dp(16), cols = Math.max(1, Math.floor((lw + gap) / (s + gap))), rh = s + dp(44);
+    const fitRows = Math.max(1, Math.floor((bottom - y + dp(10)) / rh)), shown = albums.slice(0, cols * fitRows);
+    shown.forEach((al, i) => {
+        const ax = x + (i % cols) * (s + gap), ay = y + Math.floor(i / cols) * rh, hov = AF.hover && AF.hover.id === "art-alb" && AF.hover.data === i;
+        drawAlbumTile(gr, al, ax, ay, s, hov, itemPlaying(al, np));
+        gr.DrawText(al.title || tr("UNTITLED"), fontFor(al.title || "x", 10, 600), hov ? C.accent : C.fg, ax, ay + s + dp(6), s, dp(16), DT_SINGLE | DT_ELLIPSIS);
+        label(gr, fitLabel([al.year, tr(al.tracks === 1 ? "{0} TRACK" : "{0} TRACKS", al.tracks || 0)].filter(Boolean).join("  ·  "), st(ART_ST.key, 0), s), st(ART_ST.key, C["text-muted"], bg), ax, ay + s + dp(24));
+        AF_HITS.push(["art-alb", ax, ay, s, s + dp(40), i]);
+    });
+    if (albums.length > shown.length) label(gr, tr("+{0} MORE", albums.length - shown.length), st(ART_ST.key, C["text-muted"], bg), x, bottom - dp(4));
+    // tracks: the list, scrolled with the wheel
+    const tx = x + lw + dp(24), tw = x + w - tx, rowH = dp(26), n = Math.max(1, Math.floor((bottom - y) / rowH));
+    ART_TRACKS.view = { n, max: Math.max(0, rows.length - n) };
+    ART_TRACKS.scroll = clamp(ART_TRACKS.scroll, 0, ART_TRACKS.view.max);
+    const hovT = AF.hover && AF.hover.id === "art-trk" ? AF.hover.data : -1, ks = st(ART_ST.key, C["text-muted"], bg);
+    for (let k = 0; k < n && ART_TRACKS.scroll + k < rows.length; k++) {
+        const i = ART_TRACKS.scroll + k, r = rows[i], ry = y + k * rowH, on = sameTrack(r.h, np), hov = i === hovT;
+        if (hov) gr.FillSolidRect(tx - dp(8), ry, tw + dp(8), rowH, withAlpha(C.fg, .07));
+        if (on) gr.FillSolidRect(tx - dp(8), ry + dp(5), dp(3), rowH - dp(10), C.accent);
+        label(gr, pad(i + 1, 2), st(ART_ST.key, on ? C.accent : C["text-muted"], hov ? mix(bg, C.fg, .07) : bg), tx, ry + Math.round((rowH - labelHeight(ART_ST.key)) / 2));
+        const lenW = dp(44), albW = Math.round(tw * .34);
+        gr.DrawText(r.title, fontFor(r.title, 11, on ? 600 : 400), on ? C.accent : C.fg, tx + dp(30), ry, tw - dp(30) - albW - lenW - dp(16), rowH, DT_SINGLE | DT_ELLIPSIS);
+        gr.DrawText(r.album.title || "", fontFor(r.album.title || "x", 10, 400), C["fg-soft"], tx + tw - lenW - albW - dp(8), ry, albW, rowH, DT_SINGLE | DT_ELLIPSIS);
+        label(gr, r.len, ks, tx + tw, ry + Math.round((rowH - labelHeight(ART_ST.key)) / 2), 2);
+        gr.FillSolidRect(tx, ry + rowH - HAIR, tw, HAIR, withAlpha(C.fg, .08));
+        AF_HITS.push(["art-trk", tx - dp(8), ry, tw + dp(8), rowH, i]);
+    }
+    if (ART_TRACKS.view.max > 0) {   // where the list is
+        const sh = n * rowH, bh = Math.max(dp(24), sh * n / rows.length), byy = y + (sh - bh) * ART_TRACKS.scroll / ART_TRACKS.view.max;
+        gr.FillSolidRect(x + w + dp(10), y, HAIR, sh, withAlpha(C.fg, .15));
+        gr.FillSolidRect(x + w + dp(9), byy, dp(3), bh, C.fg);
+    }
+    // ▶ PLAY ARTIST
+    const bs = st(ART_ST.btn, C.bg, C.fg), pt = tr("PLAY ARTIST"), pw = dp(34) + labelWidth(pt, bs) + dp(16), py = y0 + ch - dp(52), bh = dp(36);
+    gr.FillSolidRect(x, py, pw, bh, C.fg);
+    icon(gr, "play", x + dp(19), py + bh / 2, 9, C.bg);
+    label(gr, pt, bs, x + dp(34), py + Math.round((bh - labelHeight(ART_ST.btn)) / 2));
+    AF_HITS.push(["art-play", x, py, pw, bh]);
+}
+// the wheel over the LIBRARY tab's tracks; true when it moved them
+function artistWheel(step) {
+    if (!AF.open || AF.tab !== "lib" || !ART_TRACKS.view) return false;
+    const s = clamp(ART_TRACKS.scroll - step * 3, 0, ART_TRACKS.view.max);
+    if (s === ART_TRACKS.scroll) return true;
+    ART_TRACKS.scroll = s; AF.dirty = true; window.RepaintRect(0, 0, arrayW(), H);
+    return true;
 }
 
 // MAP: the artist in the middle, the related artists around (in the library on the left, to discover on the right);
@@ -545,10 +696,12 @@ function drawArtistMap(gr, rec, x0, y0, cw, ch, album) {
 
 // the mouse over the file: hover marks (rows, nodes)
 function artistMouseMove(x, y, a) {
-    const hv = a && (a.id === "art-rel" || a.id === "art-node") ? { id: a.id, data: a.data } : null;
+    const page = x >= infoX() - dp(20);   // the album file's ARTIST page (else the artist file over the shelves)
+    const hv = !page && a && ["art-rel", "art-node", "art-alb", "art-trk"].includes(a.id) ? { id: a.id, data: a.data } : null;
     if (JSON.stringify(hv) !== JSON.stringify(AF.hover)) { AF.hover = hv; AF.dirty = true; window.RepaintRect(0, 0, arrayW(), H); }
-    const r = a && a.id === "art-rel" && x >= infoX() - dp(20) ? a.data : -1;
-    if (r !== AF.rel) { AF.rel = r; AR.dirtyInfo = true; window.RepaintRect(infoX() - dp(20), 0, W - infoX() + dp(20), H); }
+    const r = a && a.id === "art-rel" && page ? a.data : -1;
+    const lh = page && a ? (a.id === "art-alb" ? a.data : a.id === "art-lib" ? -2 : -1) : -1;
+    if (r !== AF.rel || lh !== AF.libHover) { AF.rel = r; AF.libHover = lh; AR.dirtyInfo = true; window.RepaintRect(infoX() - dp(20), 0, W - infoX() + dp(20), H); }
 }
 // a click on the file or on the ARTIST page; true when it was ours
 function artistClick(a) {
@@ -561,6 +714,9 @@ function artistClick(a) {
         case "art-play": playArtist(A && A.lib); break;
         case "art-url": artOpenUrl(a.data); break;
         case "art-rel": case "art-node": openRelated(A && A.rec, a.data); break;
+        case "art-alb": { const al = artistAlbums(A && A.lib)[a.data]; if (al) playAlbumOf(al); break; }
+        case "art-trk": { const r = artistTracks(A && A.lib)[a.data]; if (r) playArtist(A.lib, r.h); break; }
+        case "art-lib": artistFileOpen(true); artistTab("lib"); break;
     }
     return true;
 }

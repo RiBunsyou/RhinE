@@ -35,7 +35,6 @@ const ST = {
 const st = (s, colour, bg = C.bg) => Object.assign({ colour, bg }, s);
 // the two side columns mirror each other: the read-outs on the left are as wide as the card (lib/nowplaying.js, as wide
 // as the Playlists view's) on the right, each with a 24 dp margin to the window and to the lyrics
-const CARD_W = 328, LEFT_W = CARD_W + 48;
 
 let W = 0, H = 0;
 const hits = Hits();
@@ -186,7 +185,7 @@ function npChanged(same, h, what) {
 }
 
 // the archive's file panel marks the playing track
-const playingChanged = () => { AR.tracks.key = ""; AR.listVer++; AR.dirtyInfo = true; if (STATE.view === "archive") window.Repaint(); };
+const playingChanged = () => { AR.tracks.key = ""; AR.listVer++; AR.dirtyInfo = true; AF.dirty = true; inspectFollow(); if (STATE.view === "archive") window.Repaint(); };
 function on_playback_new_track() { loadTrack(); playingChanged(); }
 function on_playback_starting() { clock.wake(); }
 function on_playback_pause() { dirty.card = true; clock.wake(); window.Repaint(); }
@@ -275,9 +274,15 @@ window.SetTimeout(loadTrack, 0);
 window.SetTimeout(libStart, 0);
 
 // ------------------------------------------------------------------------------------------------------ layout
-const cardX = () => W - dp(24 + CARD_W);
+// Lyrics' left column and card (lib/bus.js side "left" and "card"), narrowed together when the window would leave the
+// lyrics less than 360 dp. w: a width to try instead of the user's (an edge being dragged).
+function lyricsSides(w = {}) {
+    const l = w.left || side("left"), c = w.card || side("card"), room = W / SCALE - 24 - 360, k = l + c > room ? Math.max(.6, room / (l + c)) : 1;
+    return { left: Math.round(dp(l * k)), card: Math.round(dp(c * k)) };
+}
+const cardX = (w = {}) => W - dp(24) - lyricsSides(w).card;
 function lyricsGeom() {
-    const x0 = dp(LEFT_W), x1 = cardX() - dp(24), cx = Math.round((x0 + x1) / 2), cw = x1 - x0 - dp(160);   // room for the line index on the right, mirrored on the left
+    const x0 = lyricsSides().left, x1 = cardX() - dp(24), cx = Math.round((x0 + x1) / 2), cw = x1 - x0 - dp(160);   // room for the line index on the right, mirrored on the left
     return { x0, x1, cx, cw, cy: Math.round(H * .46) };
 }
 
@@ -300,19 +305,76 @@ function on_paint(gr) {
         else if (STATE.view === "style") drawStyle(gr);
     } finally { LABEL_LIVE = false; }
     drawGrain(gr, 0, 0, W, H);
+    drawSideEdges(gr);
+}
+
+// The side columns' edges (lib/bus.js): Lyrics' left column and card, the Archive's album file. While one is dragged
+// a line shows where it will go; the columns (bitmaps) are laid out again once, when the button goes up.
+function stageEdges() {
+    if (STATE.view === "lyrics") return [{ key: "left", x: lyricsSides().left, dir: 1 }, { key: "card", x: cardX() - dp(12), dir: -1 }];
+    if (STATE.view === "archive" && !AR.inspOn) return [{ key: "file", x: infoX() - dp(22), dir: -1 }];
+    return [];
+}
+// where an edge would be with the column at w dp
+function edgeX(key, w) {
+    if (key === "left") return lyricsSides({ left: w }).left;
+    if (key === "card") return cardX({ card: w }) - dp(12);
+    return W - dp(24) - fileW(w) - dp(22);
+}
+let EDGE_HOT = null;
+function drawSideEdges(gr) {
+    SIDE_EDGES = stageEdges();
+    const e = SIDE_DRAG ? { x: edgeX(SIDE_DRAG.key, SIDE_DRAG.w || side(SIDE_DRAG.key)) } : EDGE_HOT && SIDE_EDGES.find(s => s.key === EDGE_HOT);
+    if (!e) return;
+    gr.FillSolidRect(Math.round(e.x - dp(1)), 0, dp(2), H, C.accent);
+    if (SIDE_DRAG) {
+        const t = `${SIDE_DRAG.w || side(SIDE_DRAG.key)} DP`, s = st(ST.key, C["on-accent"], C.accent), lw = labelWidth(t, s) + dp(12);
+        const lx = Math.round(clamp(e.x - lw / 2, 0, W - lw)), ly = Math.round(H / 2 - dp(9));
+        gr.FillSolidRect(lx, ly, lw, dp(18), C.accent);
+        label(gr, t, s, lx + dp(6), ly + Math.round((dp(18) - labelHeight(ST.key)) / 2));
+    }
+}
+// a column's new width: the layers that hold it are drawn again
+function sidesChanged() {
+    dirty.left = dirty.card = true; layers.left = layers.card = null;
+    AR.dirtyInfo = true; AR.info = null;
+    if (W > 0 && H > 0) archiveResize();
+    window.Repaint();
+}
+let SIDES_WAS = "";
+onMessage("state", () => { const s = JSON.stringify(STATE.sides); if (s !== SIDES_WAS) { const first = !SIDES_WAS; SIDES_WAS = s; if (!first) sidesChanged(); } });
+function sideMove(x, mask) {
+    if (SIDE_DRAG) {
+        if (!(mask & 1)) { sideEnd(x); return true; }
+        const w = sideDragTo(x);
+        if (w !== SIDE_DRAG.w) { SIDE_DRAG.w = w; window.Repaint(); }
+        window.SetCursor(32644);
+        return true;
+    }
+    const e = STATE.view === "lyrics" || STATE.view === "archive" ? sideEdgeAt(x) : null, k = e ? e.key : null;
+    if (k !== EDGE_HOT) { EDGE_HOT = k; window.Repaint(); }
+    if (e) window.SetCursor(32644);   // IDC_SIZEWE
+    return !!e;
+}
+function sideEnd(x) {
+    const d = SIDE_DRAG, w = d.w || side(d.key);
+    SIDE_DRAG = null;
+    STATE.sides = pickSides(Object.assign({}, STATE.sides, { [d.key]: w }));   // at once here; the frame keeps it and tells the others
+    sidesChanged();
+    sendSide(d.key, w, true);
 }
 
 function drawLyricsView(gr) {
     // left column
     const wp = LABEL_LIVE ? WP.comp : null;   // the wallpaper's bitmap under the column (it is part of the layer)
-    if (dirty.left || !layers.left || layers.left.wp !== wp) { layers.left = renderLayer(dp(LEFT_W), H, drawLeft, layers.left); layers.left.wp = wp; dirty.left = false; }
+    if (dirty.left || !layers.left || layers.left.wp !== wp) { layers.left = renderLayer(lyricsSides().left, H, drawLeft, layers.left); layers.left.wp = wp; dirty.left = false; }
     gr.DrawImage(layers.left.img, 0, 0, layers.left.w, layers.left.h, 0, 0, layers.left.w, layers.left.h);
-    gr.FillSolidRect(dp(LEFT_W), 0, HAIR, H, withAlpha(C["line-dim"], .6));
+    gr.FillSolidRect(lyricsSides().left, 0, HAIR, H, withAlpha(C["line-dim"], .6));
     drawSpectrumBox(gr);
     // card, as tall as the view
     const ch = Math.max(cardHeight(), H - 2 * dp(24));
     if (dirty.card || !layers.card || layers.card.h !== ch) {
-        layers.card = renderLayer(dp(CARD_W), ch, (g, w, h) => drawCard(g, w, h, "queue", tr("INFO")), layers.card);
+        layers.card = renderLayer(lyricsSides().card, ch, (g, w, h) => drawCard(g, w, h, "queue", tr("INFO")), layers.card);
         dirty.card = false;
     }
     gr.DrawImage(layers.card.img, cardX(), dp(24), layers.card.w, layers.card.h, 0, 0, layers.card.w, layers.card.h);
@@ -419,7 +481,7 @@ function drawLeft(gr, w, h) {
     gr.FillSolidRect(x, y, tw, th, C.fg);
     label(gr, tr("ANALYSIS LOG"), st(ST.tag, C.bg, C.fg), x + dp(6), y + Math.round((th - labelHeight(ST.tag)) / 2));
     y += th + dp(10);
-    const bw = dp(CARD_W), lines = analysisLines(), bh = dp(12 + 10 + 10) + HAIR + lines.length * dp(18) + dp(12);
+    const bw = w - dp(48), lines = analysisLines(), bh = dp(12 + 10 + 10) + HAIR + lines.length * dp(18) + dp(12);
     box(gr, x, y, bw, bh, C["line-faint"]);
     const fault = T.missing;
     label(gr, tr("ANALYSIS"), st(ST.anaH, C.fg), x + dp(14), y + dp(12));
@@ -622,8 +684,10 @@ function drawAlert(gr, g, a) {
 }
 
 // ------------------------------------------------------------------------------------------------------- mouse
-function on_mouse_lbtn_down(x, y) {
+function on_mouse_lbtn_down(x, y, mask) {
+    if ((STATE.view === "lyrics" || STATE.view === "archive") && sideDragStart(x)) return;
     const a = hits.at(x, y);
+    if (STATE.view === "style") styleDown(x, a, mask);
     if (STATE.view === "archive" && AR.layout === "grid" && a && a.id === "grid-bar") gridBarDown(y, a);
     if (STATE.view === "archive" && AR.layout !== "grid" && a && a.id === "ar-ruler") rulerDown(x);
 }
@@ -631,6 +695,8 @@ function on_mouse_move(x, y, mask) {
     // (a drag whose button went up outside the panel ends at the next move)
     if (GRID.drag) { if (mask & 0x0001) gridBarMove(y); else gridBarUp(); return; }
     if (AR.rulerDrag) { if (mask & 0x0001) rulerMove(x); else rulerUp(); return; }
+    if (STATE.view === "style" && styleDrag(x, mask)) return;
+    if (sideMove(x, mask)) return;
     const a = hits.at(x, y), onCase = STATE.view === "archive" && archiveMouseMove(x, y, a);
     if (STATE.view === "style") styleMouseMove(a);
     window.SetCursor(a || onCase ? 32649 : 32512);
@@ -646,12 +712,20 @@ function on_mouse_leave() {
     if (NP_RATE.hover || NP_FAV.hover) { NP_RATE.hover = 0; NP_FAV.hover = false; dirty.card = true; }
     if (STATE.view === "archive") archiveMouseLeave();
     if (STATE.view === "style") styleMouseMove(null);
+    if (EDGE_HOT && !SIDE_DRAG) { EDGE_HOT = null; window.Repaint(); }
     if (hover) { hover = null; if (STATE.view === "lyrics" || STATE.view === "signal") window.Repaint(); }
 }
-function on_mouse_lbtn_dblclk(x, y) { if (STATE.view === "archive" && AR.layout === "grid" && !hits.at(x, y)) gridDblClick(x, y); }
+function on_mouse_lbtn_dblclk(x, y) {
+    // an edge: its column back to the width it came with
+    const e = (STATE.view === "lyrics" || STATE.view === "archive") && sideEdgeAt(x);
+    if (e) { STATE.sides = pickSides(Object.assign({}, STATE.sides, { [e.key]: SIDES_START[e.key] })); sidesChanged(); sendSide(e.key, SIDES_START[e.key], true); return; }
+    if (STATE.view === "style") { styleDblClick(x, hits.at(x, y)); return; }
+    if (STATE.view === "archive" && AR.layout === "grid" && !hits.at(x, y)) gridDblClick(x, y);
+}
 function on_mouse_wheel_h(step) { if (STATE.view === "archive") archiveWheelH(step); }   // a sideways wheel: shelves
 function on_mouse_wheel(step) {
     if (STATE.view === "archive") { archiveWheel(step); return; }
+    if (STATE.view === "style") { styleWheel(step); return; }
     if (STATE.view === "lyrics" && T.lyrics) {
         LYR_SCROLL.n -= step;
         LYR_SCROLL.until = performance.now() + LYR_BACK_MS;
@@ -665,6 +739,7 @@ function on_mouse_rbtn_up(x, y, mask) {
     return false;
 }
 function on_mouse_lbtn_up(x, y) {
+    if (SIDE_DRAG) { sideEnd(x); return; }
     if (GRID.drag) { gridBarUp(); return; }
     if (AR.rulerDrag) { rulerUp(); return; }
     const a = hits.at(x, y);
@@ -684,11 +759,12 @@ function on_mouse_lbtn_up(x, y) {
     else if (a.id === "lyric" && T.lyrics && T.lyrics.lines[a.data] && T.lyrics.lines[a.data].t != null && fb.IsPlaying) { LYR_SCROLL.n = 0; fb.PlaybackTime = T.lyrics.lines[a.data].t; }
     else if (a.id === "trace" && fb.IsPlaying && fb.PlaybackLength > 0) fb.PlaybackTime = clamp((x - a.x) / a.w, 0, 1) * fb.PlaybackLength;
 }
-function on_char(code) { searchChar(code); }
+function on_char(code) { if (!styleChar(code)) searchChar(code); }
 // online lyrics (lib/lyrics.js) arrive as downloads
 function on_download_file_done(path, success) { if (lyricsDownloaded(path, success)) window.Repaint(); else artistDownloaded(path, success); }
 function on_locations_added(task, handles) { libLocationsAdded(task, handles); }   // CUE sheets read for the archive (lib/library.js)
 function on_key_down(vk) {
+    if (styleKey(vk)) return;   // the text size being typed (style.js)
     if (searchKey(vk)) return;
     if (STATE.view === "archive" && archiveKey(vk)) return;
     if (STATE.view === "signal" && vk === 0x52) { Ring.mode = MODELS[(MODELS.indexOf(Ring.mode) + 1) % MODELS.length]; setSetting("ringMode", Ring.mode); window.Repaint(); return; }   // R

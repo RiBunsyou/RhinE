@@ -7,5 +7,6 @@
 //   i18n    tr(): the interface language                     custom  the user's own colour scheme
 //   wallpaper  the user's picture behind some views          rating  track ratings (where kept, read, set, drawn)
 //   tag     the title tag: the song's title on a rendered tag (05 STYLE)
+//   field   one-line text fields (the search, 05 STYLE's text size)
 
-for (const f of ["settings", "i18n", "custom", "tokens", "motion", "text", "draw", "bus", "rating", "favourite", "skins", "grain", "wallpaper", "tag"]) include(fb.ProfilePath + `themes\\audio-archive\\js\\lib\\${f}.js`);
+for (const f of ["settings", "i18n", "custom", "tokens", "motion", "text", "draw", "bus", "rating", "favourite", "skins", "grain", "wallpaper", "tag", "field"]) include(fb.ProfilePath + `themes\\audio-archive\\js\\lib\\${f}.js`);

@@ -281,4 +281,6 @@ I18N["zh-CN"] = {
     "CHOIR": "合唱团",
     "CHARACTER": "虚拟角色",
     "IMG · ALBUM COVER": "图片 · 专辑封面",
+    // 1.10: the search field's menu, 05 STYLE's text size, the artist's own albums and tracks
+    "SIZE": "字号", "LIBRARY": "库内作品", "■ IN YOUR LIBRARY": "■ 库中作品", "+{0} MORE": "还有 {0} 张", "NOTHING BY {0} IN THE LIBRARY": "库中没有 {0} 的作品", "Undo": "撤销", "Cut": "剪切", "Copy": "复制", "Paste": "粘贴", "Delete": "删除", "Select all": "全选",
 };

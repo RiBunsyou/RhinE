@@ -39,9 +39,28 @@ function on_paint(gr) {
     if (hover && hover.id === "queue") gr.FillSolidRect(hover.x, hover.y + dp(4), dp(2), hover.h - dp(8), C.accent);
     if (hover && (hover.id === "profile" || hover.id === "folder")) box(gr, hover.x, hover.y, hover.w, hover.h, C.accent);
     drawGrain(gr, 0, 0, W, H);
+    // the panel's left edge (next to the playlist) widens or narrows the card: marked while under the mouse or dragged
+    if (edgeHot || edgeDrag) gr.FillSolidRect(0, 0, dp(2), H, C.accent);
 }
 
-function on_mouse_move(x, y) {
+// The left edge drags the card's width. The panel moves with its edge, so the width comes from where the mouse is in
+// the panel as it is now (its right edge stays where it is): W - x, less where the edge was grabbed.
+let edgeHot = false, edgeDrag = null;
+const onEdge = x => x <= dp(5);
+const cardWidthAt = x => clamp(Math.round((W - (x - edgeDrag.off)) / SCALE - 2 * M.gutter), SIDES_RANGE.card[0], SIDES_RANGE.card[1]);
+function on_mouse_lbtn_down(x) { if (STATE.view === "playlists" && onEdge(x)) edgeDrag = { off: x }; }
+function on_mouse_lbtn_dblclk(x) { if (onEdge(x)) sendSide("card", SIDES_START.card, true); }
+function on_mouse_move(x, y, mask) {
+    if (edgeDrag) {
+        if (!(mask & 1)) { edgeEnd(x); return; }
+        const w = cardWidthAt(x);
+        if (w !== side("card")) sendSide("card", w, false);
+        window.SetCursor(32644);
+        return;
+    }
+    const hot = onEdge(x);
+    if (hot !== edgeHot) { edgeHot = hot; window.Repaint(); }
+    if (hot) { window.SetCursor(32644); return; }   // IDC_SIZEWE
     const a = hits.at(x, y);
     const n = a && a.id === "rate" ? ratingAt(x, a.x + a.data.pad, a.data.size) : 0;   // the rating the marks would give
     if (n !== NP_RATE.hover) { NP_RATE.hover = n; window.Repaint(); }
@@ -50,8 +69,10 @@ function on_mouse_move(x, y) {
     window.SetCursor(a ? 32649 : 32512);
     if ((a && a.id + a.y) !== (hover && hover.id + hover.y)) { hover = a; window.Repaint(); }
 }
-function on_mouse_leave() { NP_RATE.hover = 0; NP_FAV.hover = false; if (hover) { hover = null; window.Repaint(); } }
+function on_mouse_leave() { NP_RATE.hover = 0; NP_FAV.hover = false; if (edgeHot && !edgeDrag) edgeHot = false; if (hover) hover = null; window.Repaint(); }
+function edgeEnd(x) { const w = cardWidthAt(x); edgeDrag = null; sendSide("card", w, true); window.Repaint(); }
 function on_mouse_lbtn_up(x, y) {
+    if (edgeDrag) { edgeEnd(x); return; }
     const a = hits.at(x, y);
     if (a && a.id === "queue") plman.ExecutePlaylistDefaultAction(a.data.pl, a.data.index);
     else if (a && a.id === "rate") setRating(T.handle, ratingAt(x, a.x + a.data.pad, a.data.size));

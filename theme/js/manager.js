@@ -22,7 +22,7 @@ const MST = {
 const mst = (s, colour, bg = C.bg) => Object.assign({ colour, bg }, s);
 const M = TOKENS.metrics;
 const ROW = () => dp(M["manager-row"]), TOP = () => dp(52), PITCH = () => dp(13);
-const MW = () => dp(M["manager-width"] * Math.min(TEXT_SCALE, 1.3));   // the rail starts here (wider with larger text)
+const MW = () => dp(side("list") * Math.min(TEXT_SCALE, 1.3));   // the rail starts here (as wide as the user dragged it, wider with larger text)
 
 let W = 0, H = 0;
 const hits = Hits();
@@ -71,6 +71,9 @@ function on_paint(gr) {
     LABEL_LIVE = wallpaperOn("playlists") && drawWallpaper(gr, "manager", 0, 0, W, H);
     try { drawManager(gr); drawRail(gr); } finally { LABEL_LIVE = false; }
     drawGrain(gr, 0, 0, W, H);
+    // the panel's right edge (next to the playlist) widens or narrows the list: marked while under the mouse or dragged
+    SIDE_EDGES = [{ key: "list", x: W, dir: 1, k: Math.min(TEXT_SCALE, 1.3) }];
+    if (edgeHot || SIDE_DRAG) gr.FillSolidRect(W - dp(2), 0, dp(2), H, C.accent);
 }
 
 function drawManager(gr) {
@@ -198,11 +201,22 @@ function playlistMenu(x, y, i) {
 // Windows also sends mouse moves (and JSplitter mouse leaves) when windows around the cursor change, e.g. when the
 // hover card appears: a move to the same spot is ignored and a leave only counts if no move follows within 120 ms,
 // so the rail and its card stay put while the mouse holds still
-let lastMove = "", leaveTimer = 0;
+let lastMove = "", leaveTimer = 0, edgeHot = false;
 function on_mouse_move(x, y, mask) {
     window.ClearTimeout(leaveTimer); leaveTimer = 0;
     if (`${x},${y}` === lastMove && !drag) return;
     lastMove = `${x},${y}`;
+    // the list's edge being dragged: the frame lays the panels out again as it goes (lib/bus.js)
+    if (SIDE_DRAG) {
+        if (!(mask & 1)) { sideDragEnd(x); return; }
+        const w = sideDragTo(x);
+        if (w !== side("list")) sendSide("list", w, false);
+        window.SetCursor(32644);
+        return;
+    }
+    const hot = !drag && !!sideEdgeAt(x);
+    if (hot !== edgeHot) { edgeHot = hot; window.Repaint(); }
+    if (hot) { window.SetCursor(32644); return; }   // IDC_SIZEWE
     if (drag) {
         if (!drag.active && Math.abs(y - drag.y0) > dp(4)) drag.active = true;
         if (drag.active) {
@@ -219,6 +233,7 @@ function on_mouse_move(x, y, mask) {
     if ((was && was.id) !== (a && a.id) || (was && was.data) !== (a && a.data)) window.RepaintRect(0, 0, MW(), H);
 }
 function on_mouse_leave() {
+    if (edgeHot && !SIDE_DRAG) { edgeHot = false; window.Repaint(); }
     window.ClearTimeout(leaveTimer);
     leaveTimer = window.SetTimeout(() => {
         leaveTimer = 0; lastMove = "";
@@ -228,10 +243,13 @@ function on_mouse_leave() {
     }, 120);
 }
 function on_mouse_lbtn_down(x, y) {
+    if (sideDragStart(x)) return;
     const a = hits.at(x, y);
     if (a && a.id === "pl") drag = { from: a.data, y0: y, active: false, to: a.data };
 }
+function sideDragEnd(x) { const w = sideDragTo(x); SIDE_DRAG = null; sendSide("list", w, true); window.Repaint(); }
 function on_mouse_lbtn_up(x, y) {
+    if (SIDE_DRAG) { sideDragEnd(x); return; }
     const d = drag;
     drag = null;
     if (d && d.active) {
@@ -247,6 +265,7 @@ function on_mouse_lbtn_up(x, y) {
     else if (a.id === "rail") railJump(Math.floor((y - TOP()) / PITCH()), false);
 }
 function on_mouse_lbtn_dblclk(x, y) {
+    if (sideEdgeAt(x)) { sendSide("list", SIDES_START.list, true); return; }   // the edge: back to the list's own width
     const a = hits.at(x, y);
     if (a && a.id === "pl") renamePlaylist(a.data);
     else if (a && a.id === "rail") railJump(Math.floor((y - TOP()) / PITCH()), true);

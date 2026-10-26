@@ -29,7 +29,8 @@ const hits = Hits();
 let hover = null;
 const plate = { x: Spring(0, 14), w: Spring(0, 14), placed: false };
 let navRects = {};                         // view -> [x, w]
-const search = { on: false, text: "", timer: 0, caret: true };
+const search = { on: false, timer: 0, caret: true };
+const SF = makeField("", { onChange: () => queueSearch() });   // the search field's text, caret and selection (lib/field.js)
 let emblemT = 0;
 
 // ------------------------------------------------------------------------------------------------ animation clock
@@ -194,30 +195,34 @@ function drawRight(gr, navEnd) {
     // search field between the navigation and the clock; it shrinks, then hides, on narrow windows
     const sx = Math.max(navEnd + dp(24), cx - dp(26) - dp(230)), sw = Math.min(dp(230), cx - dp(26) - sx);
     if (sw < dp(110)) return;
-    const sy = dp(24), sh = dp(24), focus = search.on;
+    const sy = dp(24), sh = dp(24), focus = search.on, avail = sw - dp(22);
     hline(gr, sx, sy + sh - HAIR, sw, focus ? C.fg : C["line-faint"]);
     const ly = sy + Math.round((sh - labelHeight(ST.search)) / 2);
-    if (focus || search.text) {
-        const tx = sx, avail = sw - dp(22);
-        gr.PushClip(tx, sy, avail, sh);
-        // the query itself is plain text (no tracking), so long queries stay readable
-        const shown = search.text, f = fontFor(shown || "x", 11, 400), width = shown ? gr.CalcTextWidth(shown, f) : 0;
-        const off = Math.min(0, avail - dp(6) - width);
-        gr.DrawText(shown, f, C.fg, tx + off, sy, Math.max(avail, width + dp(4)), sh, DT_SINGLE);
-        if (focus && search.caret) gr.FillSolidRect(tx + off + width + dp(1), sy + dp(5), HAIR, sh - dp(10), C.accent);
-        gr.PopClip();
+    // the placeholder while empty (also with the caret in it); the query itself is plain text (no tracking), so long
+    // queries stay readable
+    if (!SF.text) label(gr, tr("SEARCH ARCHIVE"), st(ST.search, C["text-muted"]), sx, ly);
+    if (focus || SF.text) fieldDraw(gr, SF, sx, sy, avail, sh, fontFor(SF.text || "x", 11, 400), C.fg, focus, search.caret);
+    hits.add("search", sx, sy - dp(4), avail + dp(4), sh + dp(8));
+    // at the right end a magnifier, or with a query a cross that clears it
+    const gx = sx + sw - dp(10), gy = sy + sh / 2 - dp(1), r = dp(3.5), xh = hover && hover.id === "search-x";
+    if (SF.text) {
+        const ic = xh ? C.accent : C.fg, q = dp(3.5), cy = sy + sh / 2;
+        gr.DrawLine(gx - q, cy - q, gx + q, cy + q, Math.max(HAIR, dp(1.2)), ic);
+        gr.DrawLine(gx - q, cy + q, gx + q, cy - q, Math.max(HAIR, dp(1.2)), ic);
+        hits.add("search-x", sx + avail + dp(4), sy - dp(4), sw - avail - dp(4), sh + dp(8));
     } else {
-        label(gr, tr("SEARCH ARCHIVE"), st(ST.search, C["text-muted"]), sx, ly);
+        const ic = focus ? C.fg : C["text-muted"];
+        gr.DrawEllipse(gx - r, gy - r, 2 * r, 2 * r, HAIR, ic);
+        gr.DrawLine(gx + r * .7, gy + r * .7, gx + r * 1.8, gy + r * 1.8, HAIR, ic);
+        hits.add("search", sx + avail + dp(4), sy - dp(4), sw - avail - dp(4), sh + dp(8));
     }
-    // magnifier: ring + handle
-    const gx = sx + sw - dp(10), gy = sy + sh / 2 - dp(1), r = dp(3.5), ic = focus ? C.fg : C["text-muted"];
-    gr.DrawEllipse(gx - r, gy - r, 2 * r, 2 * r, HAIR, ic);
-    gr.DrawLine(gx + r * .7, gy + r * .7, gx + r * 1.8, gy + r * 1.8, HAIR, ic);
-    hits.add("search", sx, sy - dp(4), sw, sh + dp(8));
 }
 
 // -------------------------------------------------------------------------------------------------------- mouse
-function on_mouse_move(x, y) {
+function on_mouse_move(x, y, mask) {
+    // a drag in the search field selects (it goes on while the button is held, over the rest of the header too)
+    if (SF.drag && (mask & 1)) { fieldDrag(SF, x); search.caret = true; repaintSearch(); window.SetCursor(32513); return; }
+    if (SF.drag) fieldUp(SF);   // the button went up outside the panel
     const a = hits.at(x, y);
     window.SetCursor(a && a.id !== "clock" ? (a.id === "search" ? 32513 : 32649) : 32512);   // IDC_IBEAM / IDC_HAND / IDC_ARROW
     const key = a ? a.id + ":" + a.data : "", old = hover ? hover.id + ":" + hover.data : "";
@@ -225,24 +230,52 @@ function on_mouse_move(x, y) {
 }
 function on_mouse_leave() { if (hover) { hover = null; window.Repaint(); } }
 
+// the search field takes the mouse as it goes down (caret, Shift+click, the start of a drag)
+function on_mouse_lbtn_down(x, y, mask) {
+    const a = hits.at(x, y);
+    if (!a || a.id !== "search") return;
+    if (!search.on) focusSearch();
+    fieldDown(SF, x, !!(mask & 4));   // MK_SHIFT
+    search.caret = true;
+    repaintSearch();
+}
+function on_mouse_lbtn_dblclk(x, y) {
+    const a = hits.at(x, y);
+    if (a && a.id === "search") { fieldDblClick(SF, x); repaintSearch(); }
+}
 function on_mouse_lbtn_up(x, y) {
+    if (SF.drag) { fieldUp(SF); return; }
     const a = hits.at(x, y);
     if (!a) { if (search.on) blurSearch(); return; }
     if (a.id === "nav") send("view", a.data);
     else if (a.id === "menu") showMenu(a);
     else if (a.id === "prefs") fb.ShowPreferences();
-    else if (a.id === "search") focusSearch();
+    else if (a.id === "search-x") { clearSearch(); if (!search.on) focusSearch(); return; }
     if (a.id !== "search" && search.on) blurSearch();
+}
+// right-click in the search field: Undo, Cut, Copy, Paste, Delete, Select all
+function on_mouse_rbtn_up(x, y) {
+    const a = hits.at(x, y);
+    if (!a || a.id !== "search") return false;
+    if (!search.on) focusSearch();
+    fieldMenu(SF, x, y);
+    repaintSearch();
+    return true;
 }
 
 // ------------------------------------------------------------------------------------------------------- search
 // Typing updates a "Search" autoplaylist 300 ms after the last key; Enter applies at once; Esc clears and leaves.
 let caretTimer = 0;
-function focusSearch() {
+const repaintSearch = () => { const a = hits.get("search"); if (a) window.RepaintRect(a.x - dp(4), 0, a.w + dp(40), dp(60)); else window.Repaint(); };
+// keys: whether the field was opened from the keyboard ("/": the query is selected, so typing replaces it)
+function focusSearch(keys) {
     search.on = true;
     window.DlgCode = 0x0004 | 0x0080;   // DLGC_WANTALLKEYS | DLGC_WANTCHARS
+    fieldFocus(true);                    // foobar2000's shortcuts (Ctrl+A, Ctrl+V …) are held back while typing
+    if (keys) { SF.anchor = 0; SF.caret = SF.text.length; }
+    search.caret = true;
     window.ClearInterval(caretTimer);
-    caretTimer = window.SetInterval(() => { search.caret = !search.caret; const a = hits.get("search"); if (a) window.RepaintRect(a.x, a.y, a.w, a.h); }, 530);
+    caretTimer = window.SetInterval(() => { search.caret = !search.caret; repaintSearch(); }, 530);
     window.Repaint();
 }
 function blurSearch() {
@@ -250,13 +283,16 @@ function blurSearch() {
     remote = false;
     send("search-end");
     window.DlgCode = 0;
+    fieldFocus(false);
+    fieldUp(SF);
+    SF.anchor = SF.caret;
     window.ClearInterval(caretTimer);
     window.Repaint();
 }
 function on_focus(focused) { if (!focused && search.on && !remote) blurSearch(); }
 // typing forwarded by another panel ("/" there; lib/bus.js)
 let remote = false;
-onMessage("search", () => { remote = true; focusSearch(); });
+onMessage("search", () => { remote = true; focusSearch(true); });
 onMessage("search-char", code => on_char(code));
 onMessage("search-key", vk => { on_key_down(vk); if (!search.on) remote = false; });
 
@@ -264,34 +300,42 @@ let skipChar = 0;   // the "/" that opened the search arrives as a character nex
 function on_char(code) {
     if (code === skipChar) { skipChar = 0; return; }
     skipChar = 0;
-    if (!search.on || code < 32 || code === 127) return;
-    search.text += String.fromCharCode(code);
-    queueSearch();
+    if (search.on && fieldChar(SF, code)) search.caret = true;
 }
 
 function on_key_down(vk) {
     if (search.on) {
-        if (vk === 0x08) { search.text = search.text.slice(0, -1); queueSearch(); }                 // Backspace
-        else if (vk === 0x0D) { window.ClearTimeout(search.timer); applySearch(); }                  // Enter
-        else if (vk === 0x1B) { search.text = ""; window.ClearTimeout(search.timer); if (archiveFiltered) filterArchive(""); else leaveSearch(); blurSearch(); }   // Esc
+        if (vk === 0x0D) { window.ClearTimeout(search.timer); applySearch(); }   // Enter
+        else if (vk === 0x1B) { clearSearch(); blurSearch(); }                  // Esc
+        else if (fieldKey(SF, vk)) { search.caret = true; repaintSearch(); }    // editing and moving (lib/field.js)
         return;
     }
-    if (vk === 0xBF) { skipChar = 0x2F; focusSearch(); return; }   // "/"
+    if (vk === 0xBF) { skipChar = 0x2F; focusSearch(true); return; }   // "/"
     globalKey(vk);
+}
+
+// the field's text set from outside (no step to undo, no search run)
+function setSearchText(t) { SF.text = String(t || ""); SF.caret = SF.anchor = SF.text.length; SF.scroll = 0; }
+// Esc or the cross: the query goes, and with it the Archive's filter or the "Search" playlist
+function clearSearch() {
+    fieldSetText(SF, "");
+    window.ClearTimeout(search.timer);
+    if (archiveFiltered) filterArchive(""); else leaveSearch();
+    window.Repaint();
 }
 
 function queueSearch() {
     search.caret = true;
-    window.Repaint();
+    repaintSearch();
     window.ClearTimeout(search.timer);
     search.timer = window.SetTimeout(applySearch, STATE.view === "archive" ? 150 : 300);
 }
 // in the Archive the search filters the albums in place (lib/library.js) instead of filling the "Search" playlist
 let archiveFiltered = false;
 function filterArchive(text) { archiveFiltered = !!text; send("archive-filter", text); }
-onMessage("search-clear", () => { search.text = ""; filterArchive(""); window.Repaint(); });
+onMessage("search-clear", () => { setSearchText(""); filterArchive(""); window.Repaint(); });
 // the Archive shows something by name (an artist file's related artist): the search box says what is filtered
-onMessage("search-set", t => { search.text = String(t || ""); filterArchive(search.text); window.Repaint(); });
+onMessage("search-set", t => { setSearchText(t); filterArchive(SF.text); window.Repaint(); });
 
 // every word must match one of the main fields
 function searchQuery(text) {
@@ -309,8 +353,8 @@ function leaveSearch() {
 }
 
 function applySearch() {
-    if (STATE.view === "archive") { filterArchive(search.text); return; }
-    const q = searchQuery(search.text);
+    if (STATE.view === "archive") { filterArchive(SF.text); return; }
+    const q = searchQuery(SF.text);
     if (!q) return;
     // removing and re-creating "Search" at the same index leaves every other playlist where it was
     if (search.prev === undefined) search.prev = plman.ActivePlaylist;
@@ -385,7 +429,8 @@ function showMenu(a) {
     const pct = v => `${Math.round(v * 100)} %`;
     const ts = window.CreatePopupMenu(), as = window.CreatePopupMenu();
     TEXT_SCALES.forEach((v, i) => ts.AppendMenuItem(0, 300 + i, pct(v)));
-    ts.CheckMenuRadioItem(300, 300 + TEXT_SCALES.length - 1, 300 + Math.max(0, TEXT_SCALES.indexOf(STATE.textScale)));
+    if (TEXT_SCALES.includes(STATE.textScale)) ts.CheckMenuRadioItem(300, 300 + TEXT_SCALES.length - 1, 300 + TEXT_SCALES.indexOf(STATE.textScale));
+    else { ts.AppendMenuSeparator(); ts.AppendMenuItem(0x1 | 0x8, 399, pct(STATE.textScale)); }   // a size typed in 05 STYLE
     ts.AppendTo(theme, 0, tr("Text size"));
     ARRAY_SCALES.forEach((v, i) => as.AppendMenuItem(0, 320 + i, pct(v)));
     as.CheckMenuRadioItem(320, 320 + ARRAY_SCALES.length - 1, 320 + Math.max(0, ARRAY_SCALES.indexOf(STATE.arrayScale)));

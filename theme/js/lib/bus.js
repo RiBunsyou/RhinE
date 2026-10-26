@@ -11,7 +11,8 @@ const BUS_HANDLERS = {};
 const STATE = { view: "playlists", preset: "album", reduce: false, boot: true, skin: "white", grain: true,
                 lyricsSource: "auto", lyricsTrans: "off", lyricsNeteaseAuto: false, lyricsRoma: false,
                 textScale: 1, arrayScale: 1, inspectScale: 1.3, wallpaper: null, halftone: "bottom", halftoneLevel: "mid",
-                emblem: "ring", tag: "plastic", tagShape: "tab", tagColours: "scheme", tagCustom: null, tagOpacity: 50, tagBody: "solid", font: "geist" };
+                emblem: "ring", tag: "plastic", tagShape: "tab", tagColours: "scheme", tagCustom: null, tagOpacity: 50, tagBody: "solid", font: "geist",
+                sides: null };
 
 // text size, Array scale and inspection size: the choices offered in MENU › Audio Archive and the Style view (frame.js keeps the value)
 const TEXT_SCALES = [.9, 1, 1.1, 1.2, 1.35, 1.5], ARRAY_SCALES = [.8, .9, 1, 1.15, 1.3], INSPECT_SCALES = [1, 1.15, 1.3, 1.5];
@@ -69,6 +70,36 @@ const pickTagBody = v => ["solid", "frosted", "clear"].includes(v) ? v : "solid"
 const FONTS = [["geist", "GEIST MONO"], ["oxanium", "OXANIUM"], ["chakra", "CHAKRA PETCH"]];
 const pickFont = v => FONTS.some(f => f[0] === v) ? v : "geist";
 const pickScale = (v, list) => list.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a, 1);
+// a text size: the menu's steps (TEXT_SCALES) or any typed in 05 STYLE (SIZE), from 80 to 150 %, to the per cent
+const textScaleOf = v => Math.round(clamp(+v || 1, .8, 1.5) * 100) / 100;
+
+// The side columns' widths, which the user sets by dragging their edges (double-click: back to these), in dp at 100 %:
+//   list  Playlists' list of playlists (it also widens with the text size, as before)
+//   card  the card column of Playlists and Lyrics          left  Lyrics' left column          file  the Archive's album file
+// frame.js keeps them (setting "sides") and sends them with the state; a panel drags its own edges (SIDE_EDGES).
+const SIDES_START = { list: 232, card: 328, left: 376, file: 456 };
+const SIDES_RANGE = { list: [170, 440], card: [264, 520], left: [264, 600], file: [380, 760] };
+function pickSides(s) {
+    s = s && typeof s === "object" ? s : {};
+    const o = {};
+    for (const k in SIDES_START) { const v = +s[k]; o[k] = isFinite(v) && v > 0 ? clamp(Math.round(v), SIDES_RANGE[k][0], SIDES_RANGE[k][1]) : SIDES_START[k]; }
+    return o;
+}
+const side = k => (STATE.sides && STATE.sides[k]) || SIDES_START[k];
+// Dragging an edge: the panel lists its edges as it paints (SIDE_EDGES: { key, x, dir: +1 when the column is left of
+// the edge, -1 when right of it, k: how many dp the column grows per dp of drag }); the cursor turns to ↔ near one.
+// sideDragTo(x) gives the dragged column's width in dp for the mouse at x (the panel must not move as it is dragged).
+let SIDE_EDGES = [], SIDE_DRAG = null;
+const sideEdgeAt = x => SIDE_EDGES.find(e => Math.abs(x - e.x) <= dp(5)) || null;
+function sideDragStart(x) {
+    const e = sideEdgeAt(x);
+    if (!e) return false;
+    SIDE_DRAG = { key: e.key, dir: e.dir, k: e.k || 1, x0: x, w0: side(e.key) };
+    return true;
+}
+const sideDragTo = x => { const d = SIDE_DRAG; return clamp(Math.round(d.w0 + d.dir * (x - d.x0) / SCALE / d.k), SIDES_RANGE[d.key][0], SIDES_RANGE[d.key][1]); };
+// a width for the frame to keep (save: at the end of a drag, or a reset)
+const sendSide = (key, w, save) => send("sides", { w: { [key]: w }, save });
 
 function send(type, data = null) { window.NotifyOthers(BUS, JSON.stringify({ type, data })); }
 function onMessage(type, fn) { (BUS_HANDLERS[type] = BUS_HANDLERS[type] || []).push(fn); }
@@ -165,12 +196,12 @@ function shuffleLibrary() {
 // such as on_char itself: it would replace the panel's own, which is declared before the include runs.)
 let SEARCH_FWD = false, SEARCH_DLG = 0, SEARCH_SKIP = 0;
 function startSearchFwd() {
-    if (!SEARCH_FWD) { SEARCH_DLG = window.DlgCode; window.DlgCode = SEARCH_DLG | 0x0004 | 0x0080; }   // all keys + characters
+    if (!SEARCH_FWD) { SEARCH_DLG = window.DlgCode; window.DlgCode = SEARCH_DLG | 0x0004 | 0x0080; fieldFocus(true); }   // all keys + characters; no shortcuts
     SEARCH_FWD = true;
     SEARCH_SKIP = 0x2F;   // the "/" that started it arrives as a character next
     send("search");
 }
-onMessage("search-end", () => { if (SEARCH_FWD) { SEARCH_FWD = false; window.DlgCode = SEARCH_DLG; } });
+onMessage("search-end", () => { if (SEARCH_FWD) { SEARCH_FWD = false; window.DlgCode = SEARCH_DLG; fieldFocus(false); } });
 function searchChar(code) {
     if (!SEARCH_FWD) return;
     if (code === SEARCH_SKIP) { SEARCH_SKIP = 0; return; }
@@ -179,8 +210,8 @@ function searchChar(code) {
 }
 function searchKey(vk) {
     if (!SEARCH_FWD) return false;
-    if (vk === 0x08 || vk === 0x0D || vk === 0x1B) send("search-key", vk);   // Backspace, Enter, Esc
-    return true;   // everything else arrives as characters
+    if (vk < 0x10 || vk > 0x12) send("search-key", vk);   // every key but Shift, Ctrl, Alt themselves (the field edits with them)
+    return true;   // characters arrive through searchChar
 }
 
 // foobar2000's main-menu commands are run by their path ("View/Mode/Dark"), and translated builds of foobar2000 and of

@@ -282,4 +282,6 @@ I18N["ja"] = {
     "CHOIR": "合唱団",
     "CHARACTER": "キャラクター",
     "IMG · ALBUM COVER": "画像 · アルバムジャケット",
+    // 1.10: the search field's menu, 05 STYLE's text size, the artist's own albums and tracks
+    "SIZE": "サイズ", "LIBRARY": "所蔵作品", "■ IN YOUR LIBRARY": "■ 所蔵作品", "+{0} MORE": "ほか {0} 枚", "NOTHING BY {0} IN THE LIBRARY": "{0} の作品はライブラリにありません", "Undo": "元に戻す", "Cut": "切り取り", "Copy": "コピー", "Paste": "貼り付け", "Delete": "削除", "Select all": "すべて選択",
 };
