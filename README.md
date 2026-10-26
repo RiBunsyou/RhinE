@@ -72,6 +72,6 @@ lyrics from [LRCLIB](https://lrclib.net); artist files from MusicBrainz, Wikiped
 
 #### Contributors
 
-- [CocytusChen](https://github.com/CocytusChen): albums kept together when sorted ([#32](https://github.com/ericzhang12111-cell/RhinE/pull/32)), shelves of 10 to 30 cases ([#33](https://github.com/ericzhang12111-cell/RhinE/pull/33)), the gliding playhead ([#34](https://github.com/ericzhang12111-cell/RhinE/pull/34)), shelves that no longer blink ([#36](https://github.com/ericzhang12111-cell/RhinE/pull/36)) and move without jumps ([#37](https://github.com/ericzhang12111-cell/RhinE/pull/37))
+- [CocytusChen](https://github.com/CocytusChen): albums kept together when sorted ([#32](https://github.com/ericzhang12111-cell/RhinE/pull/32)), shelves of 10 to 30 cases ([#33](https://github.com/ericzhang12111-cell/RhinE/pull/33)), the gliding playhead ([#34](https://github.com/ericzhang12111-cell/RhinE/pull/34)), shelves that no longer blink ([#36](https://github.com/ericzhang12111-cell/RhinE/pull/36)) and move without jumps ([#37](https://github.com/ericzhang12111-cell/RhinE/pull/37)), cases on other shelves you can click ([#42](https://github.com/ericzhang12111-cell/RhinE/pull/42)) and see-through shelves in front ([#43](https://github.com/ericzhang12111-cell/RhinE/pull/43))
 - [Xuduxiu](https://github.com/Xuduxiu): shelves that adapt to ultrawide screens ([#2](https://github.com/ericzhang12111-cell/RhinE/pull/2))
 - [RiBunsyou](https://github.com/RiBunsyou): the lyrics source choice ([#27](https://github.com/ericzhang12111-cell/RhinE/pull/27))

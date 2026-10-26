@@ -81,7 +81,7 @@ Running it again keeps the foobar2000 folder and installs the theme again.
 | Shuffle the whole library | `SHUFFLE ALL` beside `ORDER`, or `ORDER › Shuffle entire library`, or `MENU` | `S` |
 | Open the folder of the playing track (in the Archive: of the selected album), the file selected | `FILE` on the signal profile card, or right-click the Archive | `F` |
 | Inspect the playing album (else the focused track's) | click the cover at the left of the transport, or the *Signal profile* card (Playlists and Lyrics views); right-click the cover to show the track in its playlist | — |
-| Search | click `SEARCH ARCHIVE` and type: in the Archive it filters the albums in place (click the `FILTER` chip's × to clear), elsewhere it fills the *Search* playlist | `/`, then type; `Enter` now, `Esc` back |
+| Search | click `SEARCH ARCHIVE` and type: in the Archive it filters the albums in place (click the `FILTER` chip's × to clear), elsewhere it fills the *Search* playlist. It edits like any text box: click or drag to select, double-click a word, right-click for Cut / Copy / Paste; the × at its end clears it | `/`, then type; `Enter` now, `Esc` back; `Ctrl+A` `C` `X` `V` `Z` |
 | foobar2000's main menu | `MENU` (top right) | — |
 | Reduce motion, grain | `MENU › Audio Archive › Reduce motion` / `Grain texture` | — |
 | Playlists: switch | click a row in the playlist manager | `↑` `↓` (manager) |
@@ -100,8 +100,9 @@ Running it again keeps the foobar2000 folder and installs the theme again.
 | Edit the lyrics: the track's own `.lrc` in Notepad (made from the lyrics shown when there is none) | right-click the Lyrics view, or the state chip's menu › `Edit lyrics (.lrc)…`; what you save shows at once | — |
 | Intro film | `MENU › Audio Archive › Play intro film`, or `PLAY INTRO` in the Style view; switch it off at start there | `B` |
 | Archive: add music | `+ ADD MUSIC FOLDER` while the Archive is empty (foobar2000's *Media Library* page) | — |
-| Archive: album / row | hover and click a case; `↑` `↓` beside the album index; `←` `→` beside the row name; wheel | `↑` `↓` album, `←` `→` row, `PgUp` `PgDn` `Home` `End` (Archive) |
-| Archive: inspect the album | click the selected case | `Enter`; `Esc` or click to return |
+| Archive: album / row | hover and click a case (on any shelf: a case on another shelf switches to it); `↑` `↓` beside the album index; `←` `→` beside the row name; wheel | `↑` `↓` album, `←` `→` row, `PgUp` `PgDn` `Home` `End` (Archive) |
+| Archive: the two shelves in front stay in view, see-through, to click back to | right-click › `Show the shelves in front (see-through)` (off by default) | — |
+| Archive: inspect the album | click the selected case; while the playing album is inspected, the next album that plays slides in (showing `TRACKS`: the next track) | `Enter`; `Esc` or click to return |
 | Archive: play / open the album | `PLAY ALBUM` / `OPEN ALBUM` | `Space` plays (or pauses it if it is playing); `Enter` while inspecting opens |
 | Archive: group by genre, decade, artist initial, favourites or none | `GROUP` in the Archive's top bar (`FAV` puts the favourites first), or right-click | — |
 | Archive: sort albums by artist, title, year or date added | `SORT` in the Archive's top bar, or right-click | — |
@@ -113,7 +114,8 @@ Running it again keeps the foobar2000 folder and installs the theme again.
 | Playlists: remove the instrumentals | right-click the playlist in the manager › `Remove instrumentals (N)`; *Edit › Undo* puts them back | — |
 | Archive: every track of the album, with ratings, without opening a playlist | the album file's second page: the two dots at its bottom, `+ N MORE · ALL TRACKS`, or right-click › `Album file: all tracks with ratings`; the wheel over it scrolls the list | `L` (Archive) |
 | Archive: who the artist is: picture, profile, biography, genres and related artists | the album file's third page `ARTIST` (the dots at its bottom, or `L` twice); `PLAY ARTIST` plays every album of the artist in the library | `L` (Archive) |
-| Archive: the artist's file, over the shelves, with a `MAP` of related artists | `OPEN FILE` on the `ARTIST` page, or right-click › `Artist file`; `FILE` / `MAP` at its top right; a related artist in your library opens it in the Archive, another its MusicBrainz page | `I` opens and closes it, `M` turns FILE / MAP, `Esc` closes |
+| Archive: the artist's file, over the shelves, with a `MAP` of related artists | `OPEN FILE` on the `ARTIST` page, or right-click › `Artist file`; `FILE` / `MAP` / `LIBRARY` at its top right; a related artist in your library opens it in the Archive, another its MusicBrainz page | `I` opens and closes it, `M` turns FILE / MAP / LIBRARY, `Esc` closes |
+| Archive: the artist's albums and tracks in your library, to play | `IN YOUR LIBRARY` on the `ARTIST` page: a click on a cover plays the album, `ALL` (or `IN LIB`) opens the artist file's `LIBRARY`: every album (a click plays it) and every track (a click plays the artist from there; the wheel scrolls them) | — |
 | Rate a track (1 – 5) | click its marks on the album file's `TRACKS` page, or on the `RATING` row of the signal profile card; the same mark again clears it | `Ctrl+1` – `Ctrl+5` rate the playing track (else the focused one), `Ctrl+0` clears |
 | Where ratings are kept | right-click the Archive › `Ratings saved in`: *Automatic* (foo_playcount's Playback Statistics when it is installed, else JSplitter's own database), *JSplitter database* (no file is written), *Playback Statistics*, or *File tags* (a `RATING` tag in the files) | — |
 | Favourites: a heart on a track or an album, apart from its rating | the heart on the `FAVOURITE` row of the signal profile card; the ♥ button beside `OPEN ALBUM` (the album, or the track when every track is shown); the heart column on the album file's `TRACKS` page; or right-click the Archive › `Favourite album` / `Favourite track` | `H` gives or takes the playing track's (else the focused one's) |
@@ -130,15 +132,16 @@ Running it again keeps the foobar2000 folder and installs the theme again.
 | Case skin | `MENU › Audio Archive › Case skin`, or right-click the Archive | — |
 | Your own case | the `CUSTOM` card under `CASE SKIN` in `05 STYLE`: a base colour, an accent and a pattern (stripes, blocks or an edge band), then `MAKE THIS CASE` | — |
 | Wallpaper | `WALLPAPER ›` under `DISPLAY` in `05 STYLE`: one of the four pictures under `COMES WITH THE THEME` (Topography, Streams, Print, Survey, each in a dark and a light version that follows the mode) or a picture of your own, behind the views you pick (Archive, Playlists, Lyrics, Signal), clear, frosted or as a halftone, with a light, medium or strong veil | — |
-| Title tag: the song's title printed on a rendered tag on the signal profile card and the album file | `TITLE TAG` under `DISPLAY` in `05 STYLE`: a finish (plastic, paper, brushed metal, translucent, transparent, Tide or Aurora glass) or off; `TAG SHAPE`, `TAG COLOURS` (the scheme's, the case's or your own), `TAG BODY` and `TAG OPACITY`. The `TITLE TAG` cards show every finish; hover one for a preview | — |
+| Title tag: the song's title printed on a rendered tag on the signal profile card and the album file | the `TITLE TAG` cards in `05 STYLE`: a finish (plastic, paper, brushed metal, translucent, transparent, Tide or Aurora glass) or `OFF`; hover one for a preview. Under `DISPLAY` › `TITLE TAG`: `TAG SHAPE`, `TAG COLOURS` (the scheme's, the case's or your own), `TAG BODY` and `TAG OPACITY` | — |
 | Font: Geist Mono, Oxanium or Chakra Petch | `FONT` under `DISPLAY` in `05 STYLE` (the native playlist keeps its own font) | — |
 | Header emblem: the Möbius ring or nested triangles | `EMBLEM` under `DISPLAY` in `05 STYLE` | — |
 | Halftone dots on the album file and the signal profile card | `HALFTONE` under `DISPLAY` in `05 STYLE`: off, along the bottom (fading upwards) or into the lower right corner; `DOTS`: faint, medium or strong | — |
 | Colour scheme (ARCHIVE, HAZARD, FLARE, FIELD, COLD FRONT, HEARTH, LIVEWIRE, MATCHA) | `MENU › Audio Archive › Colour scheme`, or the `05 STYLE` view | — |
 | Your own colour scheme | the `CUSTOM` card in `05 STYLE`: pick the page, text and accent for light and dark; the rest follows, with a warning when text is hard to read | — |
 | Style: see and switch skins and schemes | the `05 STYLE` view: hover a card for its preview, click to apply | `5` |
-| Text size (90 – 150 %), Archive array scale (80 – 130 %), inspection size (100 – 150 %) | `TEXT`, `ARRAY` and `INSPECT` at the top of the `05 STYLE` view, or `MENU › Audio Archive › Text size` / `Archive array scale` / `Inspection size` | — |
-| Archive floor: the page colour, a rendered lab deck under the shelves, or REAL STYLE (the Archive as one rendered scene on a walnut desk, always with the FROST case) | `FLOOR` at the top of the `05 STYLE` view, or `MENU › Audio Archive › Archive floor` | — |
+| Text size (8 – 15, any size: 10 is 100 %), Archive array scale (80 – 130 %), inspection size (100 – 150 %) | `SIZE` (type a number, or − / +, the wheel, `↑` `↓`), `ARRAY` and `INSPECT` under `DISPLAY` in `05 STYLE`, or `MENU › Audio Archive › Text size` (its steps) / `Archive array scale` / `Inspection size` | — |
+| Archive floor: the page colour, a rendered lab deck under the shelves, or REAL STYLE (the Archive as one rendered scene on a walnut desk, always with the FROST case) | `FLOOR` under `DISPLAY` in `05 STYLE`, or `MENU › Audio Archive › Archive floor` | — |
+| Width of the side columns: Playlists' list and card, Lyrics' left column and card, the Archive's album file | drag the column's edge (the cursor turns to ↔); a double-click on the edge gives back the width it came with | — |
 | Interface language: English, 简体中文, 日本語, 한국어, Français, Deutsch (default: Windows' display language) | `MENU › Audio Archive › Language · 语言 · 言語 · 언어 · Langue · Sprache` | — |
 
 The theme starts dark, with the ARCHIVE colour scheme and the WHITE case skin, in Windows' display language. Its

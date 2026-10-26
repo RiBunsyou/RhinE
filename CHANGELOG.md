@@ -19,6 +19,32 @@ Newest version first. Download any version from [Releases](https://github.com/er
   version that follows the mode, kept quiet in the middle where the text sits. Pick one under `COMES WITH THE THEME` in
   `05 STYLE` › `DISPLAY` › `WALLPAPER ›`; a picture of your own works as before. 主题自带壁纸：`地形`、`流线`、`印刷` 和
   `测绘`，各有深色与浅色版本，随明暗模式切换，中间留白给文字。在 `05 外观` › `显示` › `壁纸 ›` 的 `主题自带` 中选择；自己的图片照常可用。
+- The artist's albums and tracks in your library, to play: `IN YOUR LIBRARY` on the `ARTIST` page shows their covers
+  (a click plays the album), and the artist file has a `LIBRARY` tab with every album and track (a click on a track
+  plays the artist from there); `IN LIB` opens it. 库中作品：`艺术家` 页的 `库中作品` 列出该艺术家专辑的封面（点击即播放该专辑），
+  艺术家档案新增 `库内作品` 标签页，列出全部专辑和曲目（点击曲目即从该处播放该艺术家）；点击 `IN LIB` 也可打开。
+- Side columns you can widen or narrow: drag the edge of the Playlists view's list and card, the Lyrics view's left
+  column and card, or the Archive's album file; a double-click on the edge puts it back. 侧栏宽度可调：拖动播放列表视图的
+  列表与资料卡、歌词视图的左栏与资料卡、档案的专辑档案的边缘即可；双击边缘恢复原宽度。
+- The text size as a number: `SIZE` in `05 STYLE` takes any size from 8 to 15 (10 is 100 %), typed or stepped with
+  − / +, the wheel or ↑ ↓. 文字大小可输入数值：`05 外观` 的 `字号` 可输入 8 到 15 之间的任意大小（10 即 100%），也可用 − / +、滚轮或
+  ↑ ↓ 调整。
+- Archive: a case on another shelf answers the mouse, and a click switches to its shelf with it selected (#42); an
+  option shows the two shelves in front, see-through, so you can click back to them (right-click › `Show the shelves in
+  front (see-through)`, off by default; #43). Thanks to @CocytusChen for both. 档案：其他货架上的外壳也会响应鼠标，点击即
+  切换到该货架并选中它（#42）；新选项可让前方两层货架以半透明保留在视野中，方便点回去（右键 › `显示前方货架（半透明）`，默认关闭；#43）。
+  两项均感谢 @CocytusChen。
+
+**Changed · 改进**
+- The search field works like a text box: click to place the caret, drag or Shift+click to select, double-click a
+  word, `Ctrl+A` / `C` / `X` / `V` / `Z`, a right-click menu, and a × that clears it. 搜索框像普通文本框一样使用：点击定位光标，
+  拖动或 Shift+点击选择，双击选词，支持 `Ctrl+A` / `C` / `X` / `V` / `Z` 和右键菜单，× 可清空。
+- `05 STYLE` › `DISPLAY` in four tidy groups (TEXT, ARCHIVE, PAGE, TITLE TAG) whose rows line up; a setting that does
+  not apply stays in place, dimmed. The title tag is turned off with its own `OFF` card. 外观：`05 外观` › `显示` 整理为四组
+  （文字、档案、背景、标题标签），各行对齐；暂不适用的设置保留在原位并变暗。标题标签改用 `OFF` 卡片关闭。
+- Archive: an open inspection follows the music. When the next album starts (with `TRACKS`, the next track) while the
+  playing one is inspected, its case slides out and the new one slides in. 档案：查看中的外壳会跟随播放切换：查看正在播放的
+  专辑时，下一张专辑（逐曲显示时为下一首）开始播放，外壳会滑出并换成新的。
 
 ## 1.9.1 — 2026-10-20
 
