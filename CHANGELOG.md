@@ -3,7 +3,7 @@
 Newest version first. Download any version from [Releases](https://github.com/ericzhang12111-cell/RhinE/releases).
 最新版本在最上面；各版本可在 Releases 页面下载。
 
-## Unreleased
+## 1.10.2 — 2026-10-26
 
 **Added · 新增**
 - Archive: the frosted glass on the cases that are not selected (their covers blurred, as since 1.0) can be switched
