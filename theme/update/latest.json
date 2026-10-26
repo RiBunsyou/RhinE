@@ -1,29 +1,13 @@
 {
- "version": "1.10.0",
- "tag": "v1.10.0",
+ "version": "1.10.1",
+ "tag": "v1.10.1",
  "date": "2026-10-26",
  "notes": {
   "en": [
-   "Artist files: the album file's third page, ARTIST, shows who made the album: their picture, profile, biography, genres and related artists (those in your library marked), with PLAY ARTIST. OPEN FILE (I) opens the artist's file over the shelves, in a room of cases lit from below, and its MAP places the related artists around them. From MusicBrainz, Wikipedia (in the interface language when there is an article), Deezer, NetEase, Wikimedia Commons and ListenBrainz, kept for 30 days; artist.txt / artist.jpg beside an album replace the text or the picture (#25, thanks to @RusticBewildered for the idea).",
-   "Wallpapers that come with the theme: TOPOGRAPHY, STREAMS, PRINT and SURVEY, each in a dark and a light version that follows the mode, kept quiet in the middle where the text sits. Pick one under COMES WITH THE THEME in 05 STYLE › DISPLAY › WALLPAPER ›; a picture of your own works as before.",
-   "The artist's albums and tracks in your library, to play: IN YOUR LIBRARY on the ARTIST page shows their covers (a click plays the album), and the artist file has a LIBRARY tab with every album and track (a click on a track plays the artist from there); IN LIB opens it.",
-   "Side columns you can widen or narrow: drag the edge of the Playlists view's list and card, the Lyrics view's left column and card, or the Archive's album file; a double-click on the edge puts it back.",
-   "The text size as a number: SIZE in 05 STYLE takes any size from 8 to 15 (10 is 100 %), typed or stepped with − / +, the wheel or ↑ ↓.",
-   "Archive: a case on another shelf answers the mouse, and a click switches to its shelf with it selected (#42); an option shows the two shelves in front, see-through, so you can click back to them (right-click › Show the shelves in front (see-through), off by default; #43). Thanks to @CocytusChen for both.",
-   "The search field works like a text box: click to place the caret, drag or Shift+click to select, double-click a word, Ctrl+A / C / X / V / Z, a right-click menu, and a × that clears it.",
-   "05 STYLE › DISPLAY in four tidy groups (TEXT, ARCHIVE, PAGE, TITLE TAG) whose rows line up; a setting that does not apply stays in place, dimmed. The title tag is turned off with its own OFF card.",
-   "Archive: an open inspection follows the music. When the next album starts (with TRACKS, the next track) while the playing one is inspected, its case slides out and the new one slides in."
+   "Artist files: after the interface language was changed, the biography could stay in the old language. It now comes in the new one (the file says it is looking the artist up meanwhile), and an artist.txt you edit is read again after a restart."
   ],
   "zh": [
-   "艺术家档案：专辑档案的第三页 艺术家 显示专辑的作者：照片、资料、简介、流派和相关艺术家（库中有的会标出），并可 播放艺术家。打开档案（I）在货架上方打开艺术家档案，背景是自下而上照亮的档案室，其中的 关系图 把相关艺术家排在周围。资料来自 MusicBrainz、维基百科（有条目时使用界面语言）、Deezer、网易云音乐、维基共享资源和 ListenBrainz，保存 30 天；专辑旁的 artist.txt / artist.jpg 会代替简介或照片（#25，感谢 @RusticBewildered 的建议）。",
-   "主题自带壁纸：地形、流线、印刷 和 测绘，各有深色与浅色版本，随明暗模式切换，中间留白给文字。在 05 外观 › 显示 › 壁纸 › 的 主题自带 中选择；自己的图片照常可用。",
-   "库中作品：艺术家 页的 库中作品 列出该艺术家专辑的封面（点击即播放该专辑），艺术家档案新增 库内作品 标签页，列出全部专辑和曲目（点击曲目即从该处播放该艺术家）；点击 IN LIB 也可打开。",
-   "侧栏宽度可调：拖动播放列表视图的列表与资料卡、歌词视图的左栏与资料卡、档案的专辑档案的边缘即可；双击边缘恢复原宽度。",
-   "文字大小可输入数值：05 外观 的 字号 可输入 8 到 15 之间的任意大小（10 即 100%），也可用 − / +、滚轮或 ↑ ↓ 调整。",
-   "档案：其他货架上的外壳也会响应鼠标，点击即切换到该货架并选中它（#42）；新选项可让前方两层货架以半透明保留在视野中，方便点回去（右键 › 显示前方货架（半透明），默认关闭；#43）。两项均感谢 @CocytusChen。",
-   "搜索框像普通文本框一样使用：点击定位光标，拖动或 Shift+点击选择，双击选词，支持 Ctrl+A / C / X / V / Z 和右键菜单，× 可清空。",
-   "外观：05 外观 › 显示 整理为四组（文字、档案、背景、标题标签），各行对齐；暂不适用的设置保留在原位并变暗。标题标签改用 OFF 卡片关闭。",
-   "档案：查看中的外壳会跟随播放切换：查看正在播放的专辑时，下一张专辑（逐曲显示时为下一首）开始播放，外壳会滑出并换成新的。"
+   "艺术家档案：切换界面语言后，简介可能一直停留在原来的语言；现在会改用新语言（获取期间显示正在查询），修改过的 artist.txt 在重启后也会重新读取。"
   ]
  }
 }
