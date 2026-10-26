@@ -58,6 +58,7 @@ const AR = {
     dirtyInfo: true, info: null,
     topTitles: getSetting("caseTopTitles", true) !== false,
     frontShelves: getSetting("archiveFrontShelves", false) === true,   // the shelves in front stay in view (the context menu)
+    frost: getSetting("caseFrost", true) !== false,   // the cases not selected behind frosted glass, their covers blurred (the context menu, 05 STYLE)
     skipInst: getSetting("skipInstrumentals", false) === true,   // play albums without their instrumentals (lib/playlists.js)   // the titles on the cases' top edges (the context menu)
     hoverMode: HOVER_MODES.includes(getSetting("caseHover", "outline")) ? getSetting("caseHover", "outline") : "outline",   // the case under the mouse: outlined, titled or left as is (the context menu)
     hoverPlate: null,   // the case to label this frame (hoverMode "label"): drawn after the shelf, over its neighbours
@@ -228,6 +229,8 @@ function moveAlbum(d) {
     r.scroll.to = scrollTarget(sel, g);
     selectionChanged();
 }
+// the frosted glass on the cases not selected (their covers blurred), or clear glass on every case
+function setFrost(on) { AR.frost = !!on; setSetting("caseFrost", AR.frost); clock.wake(); window.Repaint(); }
 // a case clicked on another shelf: that shelf becomes the selected one, with the case selected on it
 function selectCase(gi, i) {
     const g = arRows()[gi];
@@ -930,7 +933,8 @@ function drawArrayCase(gr, it, sx, sy, k, aw, I) {
     let selItem = null;
     if (it.isSel) { AR.from = [ox + meta.center[0] * k, oy + meta.center[1] * k]; selItem = { ox, oy }; }
     if (it.isSel && inspTurn() > 0) return selItem;                   // drawn by the inspection
-    const alpha = rowAlpha(it.pos), f = rowTint(it.pos), t = thumbOf(it.a), cl = clamp(it.c.clear.x, 0, 1);
+    // (with the frosted glass switched off every case is drawn as the selected one is: clear, its cover sharp)
+    const alpha = rowAlpha(it.pos), f = rowTint(it.pos), t = thumbOf(it.a), cl = AR.frost ? clamp(it.c.clear.x, 0, 1) : 1;
     // One way of drawing a case at every place, so a row moving between places changes smoothly (a tinted row was drawn
     // frosted whatever its cases' clearing, so a case went frosted or clear at once as its row left or reached the
     // front). The cover under the case, the sharp one over the blurred as the case clears; tinted like the row.
@@ -1689,6 +1693,7 @@ function archiveMenu(x, y) {
     m.AppendMenuItem(curAlbum() ? 0 : 1, 11, tr("Random pick") + "	R");
     m.AppendMenuItem(AR.topTitles ? 0x8 : 0, 12, tr("Titles on the cases' top edges"));
     m.AppendMenuItem(AR.frontShelves ? 0x8 : 0, 18, tr("Show the shelves in front (see-through)"));
+    m.AppendMenuItem(AR.frost ? 0x8 : 0, 20, tr("Frosted glass on the cases"));
     m.AppendMenuItem(AR.page === "tracks" ? 0x8 : 0, 14, tr("Album file: all tracks with ratings") + "\tL");
     m.AppendMenuItem(AR.skipInst ? 0x8 : 0, 15, tr("Play albums without instrumentals"));
     m.AppendMenuItem(curAlbum() ? 0 : 1, 19, tr("Artist file") + "	I");
@@ -1715,6 +1720,7 @@ function archiveMenu(x, y) {
     else if (id === 13) openFolder(itemTrack(curAlbum()) || albumFirst(curAlbum()));
     else if (id >= 500 && HOVER_MODES[id - 500]) { AR.hoverMode = HOVER_MODES[id - 500]; setSetting("caseHover", AR.hoverMode); window.Repaint(); }
     else if (id === 12) { AR.topTitles = !AR.topTitles; setSetting("caseTopTitles", AR.topTitles); window.Repaint(); }
+    else if (id === 20) setFrost(!AR.frost);
     else if (id === 18) { AR.frontShelves = !AR.frontShelves; setSetting("archiveFrontShelves", AR.frontShelves); requestVisibleThumbs(); clock.wake(); window.Repaint(); }
     else if (id === 14) setInfoPage(AR.page === "tracks" ? "file" : "tracks");
     else if (id === 19) artistFileOpen(true);

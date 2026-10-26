@@ -265,7 +265,7 @@ function drawIntroButton(gr, xr, y) {
 
 // DISPLAY: the settings that are not cards, in four groups whose rows line up (a label column, then the control):
 //   TEXT       SIZE [− 10.0 +] (typed, or stepped by 0.5; 10 is 100 %), FONT
-//   ARCHIVE    ARRAY, INSPECT, FLOOR (with REAL STYLE, the offer of its colour scheme under it)
+//   ARCHIVE    ARRAY, INSPECT, FLOOR (with REAL STYLE, the offer of its colour scheme under it), GLASS (frosted or clear)
 //   PAGE       WALLPAPER ›, HALFTONE, DOTS, EMBLEM
 //   TITLE TAG  TAG SHAPE, TAG COLOURS (the custom ones under it), TAG BODY, TAG OPACITY (the finish: the cards above)
 // The groups flow into as many columns as the width takes. A row that does not apply now (DOTS with the halftone off,
@@ -279,7 +279,8 @@ function displayGroups() {
     return [
         { title: "TEXT", rows: [{ title: "SIZE", kind: "size" }, row("FONT", FONTS.filter(([id]) => FONT_FAMILIES[id].ok), STATE.font, "sty-font")] },
         { title: "ARCHIVE", rows: [row("ARRAY", sc(ARRAY_SCALES), STATE.arrayScale, "sty-array"), row("INSPECT", sc(INSPECT_SCALES), STATE.inspectScale, "sty-inspect"),
-                                   row("FLOOR", FLOORS, STATE.floor, "sty-floor"), ...(hearthOffer() ? [{ title: "", kind: "hearth" }] : [])] },
+                                   row("FLOOR", FLOORS, STATE.floor, "sty-floor"), ...(hearthOffer() ? [{ title: "", kind: "hearth" }] : []),
+                                   row("GLASS", [["frost", "FROST"], ["clear", "CLEAR"]], AR.frost ? "frost" : "clear", "sty-glass")] },
         { title: "PAGE", rows: [{ title: "WALLPAPER", kind: "wallpaper" }, row("HALFTONE", HALFTONES, STATE.halftone, "sty-ht"),
                                 row("DOTS", HALFTONE_LEVELS, STATE.halftoneLevel, "sty-htl", STATE.halftone === "off"), row("EMBLEM", EMBLEMS, STATE.emblem, "sty-emblem")] },
         { title: "TITLE TAG", rows: [row("TAG SHAPE", TAG_SHAPES, STATE.tagShape, "sty-tagshape", !tagOn), row("TAG COLOURS", TAG_COLOUR_SOURCES, STATE.tagColours, "sty-tagcol", !tagRecolours()),
@@ -792,6 +793,7 @@ function styleClick(a) {
     if (STY.sizeEdit && !(a && a.id === "sty-size-field")) sizeEditEnd(true);
     if (!a) return;
     if (a.id === "sty-size") { stepTextSize(a.data); return; }
+    if (a.id === "sty-glass") { setFrost(a.data === "frost"); return; }
     if (a.id === "sty-skin" && a.data === "custom") {
         STY.edit = "case";
         if (!customCaseMade()) makeCase();

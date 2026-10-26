@@ -283,4 +283,6 @@ I18N["ko"] = {
     "IMG · ALBUM COVER": "이미지 · 앨범 커버",
     // 1.10: the search field's menu, 05 STYLE's text size, the artist's own albums and tracks
     "SIZE": "크기", "LIBRARY": "보유 작품", "■ IN YOUR LIBRARY": "■ 보유 작품", "+{0} MORE": "외 {0}장", "NOTHING BY {0} IN THE LIBRARY": "라이브러리에 {0}의 작품이 없습니다", "Undo": "실행 취소", "Cut": "잘라내기", "Copy": "복사", "Paste": "붙여넣기", "Delete": "삭제", "Select all": "모두 선택",
+    // 1.10.2: the frosted glass on the cases
+    "GLASS": "유리", "Frosted glass on the cases": "케이스 반투명 유리",
 };

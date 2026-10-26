@@ -102,6 +102,7 @@ Running it again keeps the foobar2000 folder and installs the theme again.
 | Archive: add music | `+ ADD MUSIC FOLDER` while the Archive is empty (foobar2000's *Media Library* page) | — |
 | Archive: album / row | hover and click a case (on any shelf: a case on another shelf switches to it); `↑` `↓` beside the album index; `←` `→` beside the row name; wheel | `↑` `↓` album, `←` `→` row, `PgUp` `PgDn` `Home` `End` (Archive) |
 | Archive: the two shelves in front stay in view, see-through, to click back to | right-click › `Show the shelves in front (see-through)` (off by default) | — |
+| Archive: frosted glass on the cases not selected (their covers blurred) or clear glass on every case | right-click › `Frosted glass on the cases`, or `GLASS` under `DISPLAY` › `ARCHIVE` in `05 STYLE` (frosted by default) | — |
 | Archive: inspect the album | click the selected case; while the playing album is inspected, the next album that plays slides in (showing `TRACKS`: the next track) | `Enter`; `Esc` or click to return |
 | Archive: play / open the album | `PLAY ALBUM` / `OPEN ALBUM` | `Space` plays (or pauses it if it is playing); `Enter` while inspecting opens |
 | Archive: group by genre, decade, artist initial, favourites or none | `GROUP` in the Archive's top bar (`FAV` puts the favourites first), or right-click | — |

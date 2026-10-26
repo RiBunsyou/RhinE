@@ -3,6 +3,19 @@
 Newest version first. Download any version from [Releases](https://github.com/ericzhang12111-cell/RhinE/releases).
 最新版本在最上面；各版本可在 Releases 页面下载。
 
+## Unreleased
+
+**Added · 新增**
+- Archive: the frosted glass on the cases that are not selected (their covers blurred, as since 1.0) can be switched
+  off, so every cover shows sharp: right-click the Archive › `Frosted glass on the cases`, or `GLASS` under `DISPLAY` ›
+  `ARCHIVE` in `05 STYLE`. 档案：未选中外壳的磨砂玻璃（自 1.0 起封面会被模糊）现在可以关闭，让所有封面都清晰显示：档案右键 ›
+  `外壳磨砂玻璃`，或 `05 外观` › `显示` › `档案` 下的 `玻璃`。
+
+**Fixed · 修复**
+- The header no longer overlaps itself in a narrow window: the navigation drops its numbers first, then the clock and
+  the wordmark's text give way, and at last the navigation shows only the numbers. 窄窗口下顶栏不再重叠：导航先去掉编号，
+  再依次隐藏时钟与标志文字，最后只显示编号。
+
 ## 1.10.1 — 2026-10-26
 
 **Fixed · 修复**

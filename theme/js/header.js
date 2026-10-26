@@ -28,7 +28,7 @@ let W = 0, H = 0;
 const hits = Hits();
 let hover = null;
 const plate = { x: Spring(0, 14), w: Spring(0, 14), placed: false };
-let navRects = {};                         // view -> [x, w]
+let navRects = {}, navKey = "";            // view -> [x, w]; the layout they were measured for
 const search = { on: false, timer: 0, caret: true };
 const SF = makeField("", { onChange: () => queueSearch() });   // the search field's text, caret and selection (lib/field.js)
 let emblemT = 0;
@@ -93,9 +93,10 @@ function on_paint(gr) {
     regCross(gr, dp(8), dp(8));
     regCross(gr, W - dp(8 + 11), dp(8));
     drawPlate(gr);
-    drawIdentity(gr);
-    const navEnd = drawNav(gr);
-    drawRight(gr, navEnd);
+    const L = headerLayout();
+    if (L.ident) drawIdentity(gr);
+    const navEnd = drawNav(gr, L);
+    drawRight(gr, navEnd, L);
     hline(gr, dp(24), H - HAIR, W - dp(48));
     drawGrain(gr, 0, 0, W, H);
 }
@@ -120,13 +121,35 @@ function drawIdentity(gr) {
     label(gr, "TERMINAL", st(ST.termB, C.fg), x + w, dp(42), 2);
 }
 
-function drawNav(gr) {
+// On a narrow window the header gives way instead of overlapping: first the navigation drops its numbers (01 …), then
+// the clock goes, then the wordmark's text, and at last the navigation shows only the numbers (the plate marks the
+// view open). The search field has already gone by then (drawRight), and PREFERENCES has become its gear.
+const navItemW = (v, mode) => {
+    const [n, name] = NAV[v], nw = labelWidth(n, st(ST.navNo, 0)), tw = labelWidth(name, st(ST.nav, 0));
+    return dp(14) + (mode === "names" ? tw : mode === "numbers" ? labelWidth(n, st(ST.nav, 0)) : nw + dp(9) + tw) + dp(14);
+};
+const navWidth = mode => VIEWS.reduce((a, v) => a + navItemW(v, mode), 0) + dp(6) * (VIEWS.length - 1);
+function headerLayout() {
+    const mw = dp(14) + dp(8) + labelWidth(tr("MENU"), st(ST.menu, 0)), px = W - dp(24) - mw - dp(30) - dp(14);
+    const steps = [[true, true, "full"], [true, true, "names"], [true, false, "names"], [false, false, "names"], [false, false, "numbers"]];
+    for (const [ident, clk, mode] of steps) {
+        const x0 = ident ? dp(352) : dp(140), end = clk ? px - dp(36) - clockWidth() : px - dp(8);
+        if (x0 + navWidth(mode) + dp(24) <= end) return { ident, clock: clk, mode, x0 };
+    }
+    return { ident: false, clock: false, mode: "numbers", x0: dp(140) };
+}
+function clockWidth() {
+    const now = new Date(), days = tr("SUN MON TUE WED THU FRI SAT").split(" "), months = tr("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC").split(" ");
+    return Math.max(labelWidth("00:00:00", st(ST.time, 0)), labelWidth(tr("{0} · {1} {2} {3}", days[now.getDay()], pad(now.getDate(), 2), months[now.getMonth()], now.getFullYear()), st(ST.date, 0)));
+}
+
+function drawNav(gr, L) {
     const y = dp(22), h = dp(28);
-    let x = dp(352);
-    const fresh = !navRects.archive;
+    let x = L.x0;
+    const key = L.mode + "|" + L.x0, fresh = !navRects.archive || key !== navKey;
+    if (fresh) { navRects = {}; navKey = key; }
     for (const v of VIEWS) {
-        const [n, name] = NAV[v];
-        const w = dp(14) + labelWidth(n, st(ST.navNo, 0)) + dp(9) + labelWidth(name, st(ST.nav, 0)) + dp(14);
+        const w = navItemW(v, L.mode);
         if (fresh) navRects[v] = [x, w];
         hits.add("nav", x, y, w, h, v);
         x += w + dp(6);
@@ -141,7 +164,8 @@ function drawNav(gr) {
             const [n, name] = NAV[v], [nx] = navRects[v], isHover = !inverse && hover && hover.id === "nav" && hover.data === v;
             const back = inverse ? C.fg : C.bg;
             const noCol = inverse ? mix(C.bg, C.fg, .3) : C["text-muted"], nameCol = inverse ? C.bg : isHover ? C.fg : C["fg-soft"];
-            const nwid = label(gr, n, st(ST.navNo, noCol, back), nx + dp(14), ty + dp(1));
+            if (L.mode === "numbers") { label(gr, n, st(ST.nav, nameCol, back), nx + dp(14), ty); continue; }   // (the number at the name's size)
+            const nwid = L.mode === "names" ? -dp(9) : label(gr, n, st(ST.navNo, noCol, back), nx + dp(14), ty + dp(1));
             label(gr, name, st(ST.nav, nameCol, back), nx + dp(14) + nwid + dp(9), ty);
         }
     };
@@ -154,7 +178,7 @@ function drawNav(gr) {
     return x;
 }
 
-function drawRight(gr, navEnd) {
+function drawRight(gr, navEnd, L) {
     // MENU (right edge): three-line icon + label; hover inverts
     const mw = dp(14) + dp(8) + labelWidth(tr("MENU"), st(ST.menu, 0)), mx = W - dp(24) - mw, my = dp(22), mh = dp(28);
     const mHover = hover && hover.id === "menu";
@@ -171,7 +195,7 @@ function drawRight(gr, navEnd) {
     const dateText = tr("{0} · {1} {2} {3}", days[now.getDay()], pad(now.getDate(), 2), months[now.getMonth()], now.getFullYear());
     const cw = Math.max(labelWidth("00:00:00", st(ST.time, 0)), labelWidth(dateText, st(ST.date, 0)));
     const fullW = dp(14) + dp(8) + labelWidth(tr("PREFERENCES"), st(ST.menu, 0));
-    const withLabel = mx - dp(30) - fullW - dp(36) - cw - dp(26) - (navEnd + dp(24)) >= dp(170);
+    const withLabel = mx - dp(30) - fullW - (L.clock ? dp(36) + cw : 0) - dp(26) - (navEnd + dp(24)) >= dp(170);
     const pw = withLabel ? fullW : dp(14), px = mx - dp(30) - pw;
     const pHover = hover && hover.id === "prefs";
     if (pHover) gr.FillSolidRect(px - dp(8), my, pw + dp(16), mh, C.fg);
@@ -184,13 +208,15 @@ function drawRight(gr, navEnd) {
     if (withLabel) label(gr, tr("PREFERENCES"), st(ST.menu, pc, pHover ? C.fg : C.bg), px + dp(22), my + Math.round((mh - labelHeight(ST.menu)) / 2));
     hits.add("prefs", px - dp(8), my, pw + dp(16), mh);
 
-    // clock: time over date, right-aligned before PREFERENCES
-    const cx = Math.min(W - dp(284), px - dp(36) - cw);
-    const tw = label(gr, `${pad(now.getHours(), 2)}:${pad(now.getMinutes(), 2)}:${pad(now.getSeconds(), 2)}`, st(ST.time, C.fg), cx, dp(18));
-    // the date under the time, however large the text is set
-    const dy = Math.max(dp(39), dp(18) + labelHeight(ST.time) - dp(2));
-    const dw = label(gr, dateText, st(ST.date, C["text-muted"]), cx, dy);
-    hits.add("clock", cx, dp(16), Math.max(tw, dw) + dp(4), dp(36));
+    // clock: time over date, right-aligned before PREFERENCES (gone when the navigation needs the room)
+    const cx = L.clock ? Math.min(W - dp(284), px - dp(36) - cw) : px - dp(10);
+    if (L.clock) {
+        const tw = label(gr, `${pad(now.getHours(), 2)}:${pad(now.getMinutes(), 2)}:${pad(now.getSeconds(), 2)}`, st(ST.time, C.fg), cx, dp(18));
+        // the date under the time, however large the text is set
+        const dy = Math.max(dp(39), dp(18) + labelHeight(ST.time) - dp(2));
+        const dw = label(gr, dateText, st(ST.date, C["text-muted"]), cx, dy);
+        hits.add("clock", cx, dp(16), Math.max(tw, dw) + dp(4), dp(36));
+    }
 
     // search field between the navigation and the clock; it shrinks, then hides, on narrow windows
     const sx = Math.max(navEnd + dp(24), cx - dp(26) - dp(230)), sw = Math.min(dp(230), cx - dp(26) - sx);

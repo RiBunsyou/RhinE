@@ -283,4 +283,6 @@ I18N["de"] = {
     "IMG · ALBUM COVER": "BILD · ALBUMCOVER",
     // 1.10: the search field's menu, 05 STYLE's text size, the artist's own albums and tracks
     "SIZE": "GRÖSSE", "LIBRARY": "BESTAND", "■ IN YOUR LIBRARY": "■ IM BESTAND", "+{0} MORE": "+{0} WEITERE", "NOTHING BY {0} IN THE LIBRARY": "NICHTS VON {0} IM BESTAND", "Undo": "Rückgängig", "Cut": "Ausschneiden", "Copy": "Kopieren", "Paste": "Einfügen", "Delete": "Löschen", "Select all": "Alles auswählen",
+    // 1.10.2: the frosted glass on the cases
+    "GLASS": "GLAS", "Frosted glass on the cases": "Mattglas auf den Hüllen",
 };
