@@ -24,8 +24,8 @@ const ART_ST = {
 const ART_ROOT = THEME_ROOT + "assets\\render\\artist\\";
 const AF = { open: false, tab: "file", layer: null, dirty: true, hover: null, rel: -1, libHover: -1, img: {} };
 ART.listeners.push(rec => {
-    const a = curAlbum();
-    if (!a || artKey(a.artist || "") !== artKey(rec.name)) return;
+    const a = curAlbum(), al = a && (albumOf(a) || a), k = artKey(rec.name);   // the album's artist, or the first one named
+    if (!al || (artKey(al.artist || "") !== k && artKey(firstArtist(al.artist || "")) !== k)) return;
     AR.dirtyInfo = true; AF.dirty = true;
     window.Repaint();
 });
@@ -267,7 +267,7 @@ function drawInfoArtist(gr, a, x, y, iw, w, h) {
     for (const [cx, cy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) gr.FillSolidRect(x + cx * (bw - dp(5)), y + cy * (hh - dp(5)), dp(5), dp(5), C.fg);
     label(gr, t, hs, x + dp(20), y + Math.round((hh - labelHeight(ART_ST.head)) / 2));
     const bio = artistBio(rec);
-    const ct = !rec ? "" : rec.state === "loading" ? tr("LOADING") : bio ? `${bio.source === "WIKIPEDIA" ? "WIKI" : "TXT"}${bio.lang ? " · " + bio.lang.toUpperCase() : ""}` : rec.state === "none" ? tr("NO FILE") : "MB";
+    const ct = !rec ? "" : rec.state === "loading" || (bio && !bio.source) ? tr("LOADING") : bio ? `${{ WIKIPEDIA: "WIKI", NETEASE: "NETEASE" }[bio.source] || "TXT"}${bio.lang ? " · " + bio.lang.toUpperCase() : ""}` : rec.state === "none" ? tr("NO FILE") : "MB";
     if (ct) { const cw = labelWidth(ct, { size: 9.5, weight: 600, track: .1, colour: 0, bg: 0 }) + dp(28); chip(gr, ct, x + iw - cw, y + Math.round((hh - dp(22)) / 2), dp(22), rec.state === "none" ? "" : "acc", 9.5, C.bg); }
     y += hh + dp(14);
     gr.FillSolidRect(x, y, w - x, HEAVY, C.fg);

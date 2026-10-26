@@ -3,6 +3,14 @@
 Newest version first. Download any version from [Releases](https://github.com/ericzhang12111-cell/RhinE/releases).
 最新版本在最上面；各版本可在 Releases 页面下载。
 
+## Unreleased
+
+**Fixed · 修复**
+- Artist files: after the interface language was changed, the biography could stay in the old language. It now comes
+  in the new one (the file says it is looking the artist up meanwhile), and an `artist.txt` you edit is read again after
+  a restart. 艺术家档案：切换界面语言后，简介可能一直停留在原来的语言；现在会改用新语言（获取期间显示正在查询），修改过的
+  `artist.txt` 在重启后也会重新读取。
+
 ## 1.10.0 — 2026-10-26
 
 **Added · 新增**

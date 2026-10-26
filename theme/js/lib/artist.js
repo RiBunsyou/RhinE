@@ -19,15 +19,17 @@ const ART_UA = { "User-Agent": "RhinE-AudioArchive/1.10 ( https://github.com/eri
 // the interface language's Wikipedia first (Chinese in simplified characters), then English, then the artist's own
 const ART_WIKI = { "zh-CN": "zh", ja: "ja", ko: "ko", fr: "fr", de: "de", en: "en" };
 const ART_LANGS = [...new Set([ART_WIKI[UI_LANG] || "en", "en", "ja", "ko", "zh", "fr", "de"])];
-const ART = { mem: new Map(), mb: [], mbBusy: false, last: 0, listeners: [], pics: new Map() };
+const ART = { mem: new Map(), mb: [], mbBusy: false, last: 0, listeners: [], pics: new Map(), asked: new Map() };   // asked: "key|lang" -> an article fetch
 const TF_MBID = fb.TitleFormat("[%musicbrainz_artistid%]|[%musicbrainz artist id%]");
 
 const artKey = name => fnv(String(name).trim().toLowerCase());
 const artFile = name => ART_DIR + artKey(name) + ".json";
 const artNameKey = s => String(s || "").toLowerCase().replace(/[\s.·・'’"“”!?,()（）\[\]【】「」\-_]/g, "");
+// what belongs to this session only (artist.txt / artist.jpg beside the files are read again each time) is not saved
+const ART_TRANSIENT = ["localDir", "localText", "localPic", "wikiAsked"];
 function artSave(rec) {
     if (!utils.IsDirectory(ART_DIR)) utils.CreateFolder(ART_DIR);
-    utils.WriteTextFile(artFile(rec.name), JSON.stringify(rec), false);
+    utils.WriteTextFile(artFile(rec.name), JSON.stringify(rec, (k, v) => ART_TRANSIENT.includes(k) ? undefined : v), false);
 }
 function artChanged(rec) { ART.mem.set(artKey(rec.name), rec); for (const f of ART.listeners) f(rec); }
 
@@ -41,7 +43,7 @@ function artistGet(name, handle, prefetch = false) {
     let rec = ART.mem.get(k);
     if (!rec && utils.IsFile(artFile(name))) {
         try { rec = JSON.parse(utils.ReadTextFile(artFile(name), 65001)); } catch (e) { rec = null; }
-        if (rec) ART.mem.set(k, rec);
+        if (rec) { for (const f of ART_TRANSIENT) delete rec[f]; ART.mem.set(k, rec); }   // (files from 1.10.0 kept them)
     }
     const age = rec ? Date.now() - (rec.t || 0) : Infinity;
     const stale = !rec || (rec.v || 1) < ART_VER || (rec.state === "none" ? age > ART_MISS_DAYS * 864e5 : age > ART_DAYS * 864e5);
@@ -249,18 +251,28 @@ function artistDownloaded(path, ok) {
     return true;
 }
 
-// the biography to show: artist.txt, else the interface language's article (fetched on first use), else any
+// the biography to show: artist.txt, else the interface language's article (fetched on first use, for instance after
+// the language was changed: while it comes, the file says so rather than showing another language), else any
 function artistBio(rec) {
     if (!rec) return null;
     if (rec.localText) return { text: rec.localText, source: "ARTIST.TXT", lang: "", url: "" };
-    const w = rec.wiki || {}, want = ART_LANGS[0];
-    if (!w[want] && rec.wikiTitles && rec.wikiTitles[want] && !rec.wikiAsked) {
-        rec.wikiAsked = true;
-        artWikiText(rec, want, ok => { if (ok) { artSave(rec); artChanged(rec); } });
+    const w = rec.wiki || {}, want = ART_LANGS[0], ak = artKey(rec.name) + "|" + want, asked = ART.asked.get(ak);
+    // asked once per language and session; a fetch that failed is tried again two minutes later
+    if (!w[want] && rec.wikiTitles && rec.wikiTitles[want] && !(asked && (asked.busy || Date.now() - asked.t < 120000))) {
+        ART.asked.set(ak, { busy: true, t: Date.now() });
+        artWikiText(rec, want, ok => {
+            ART.asked.set(ak, { busy: false, t: Date.now() });
+            if (ok) {   // the file's log names the article now shown
+                rec.log = (rec.log || []).filter(l => l[0] !== "WIKIPEDIA").concat([["WIKIPEDIA", `${want.toUpperCase()} · ${(rec.wiki[want].text.length / 1024).toFixed(1)} KB`]]);
+                artSave(rec);
+            }
+            artChanged(rec);
+        });
     }
     // Chinese readers get NetEase's introduction before an article in another language; others get it last
     const ne = rec.neBio ? { text: rec.neBio.text, source: "NETEASE", lang: "zh", url: rec.neBio.url } : null;
     if (w[want]) return { text: w[want].text, source: "WIKIPEDIA", lang: want, url: w[want].url, licence: "CC BY-SA 4.0" };
+    if (ART.asked.get(ak) && ART.asked.get(ak).busy) return { text: tr("Looking the artist up …"), source: "", lang: "", url: "" };
     if (want === "zh" && ne) return ne;
     const lang = ART_LANGS.find(l => w[l]);
     return lang ? { text: w[lang].text, source: "WIKIPEDIA", lang, url: w[lang].url, licence: "CC BY-SA 4.0" } : ne;
