@@ -3,7 +3,7 @@
 Newest version first. Download any version from [Releases](https://github.com/ericzhang12111-cell/RhinE/releases).
 最新版本在最上面；各版本可在 Releases 页面下载。
 
-## Unreleased
+## 1.10.1 — 2026-10-26
 
 **Fixed · 修复**
 - Artist files: after the interface language was changed, the biography could stay in the old language. It now comes
